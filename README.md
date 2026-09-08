@@ -17,6 +17,10 @@ The rule is simple: no fill, no claim.
 
 The harness places orders. The model only proposes them.
 
+## Pair support
+
+The claim contract accepts any uppercase Binance Spot symbol supported by the connected account. Read-only ticker checks passed for `BTCUSDT`, `ETHUSDT`, `SOLUSDT`, `XRPUSDT`, `ADAUSDT`, and `DOGEUSDT` on 2026-09-08. The live claim-bound order and cancellation proof uses `BNBUSDT`.
+
 ## Verify the proof
 
 The proof lives in Binance's order record, not only in Qualto's log. These claim-bound limit orders were placed in the Binance Agentic sub-account, read back as `PROVED`, cancelled immediately, and confirmed with zero execution:
