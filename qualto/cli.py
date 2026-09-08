@@ -12,6 +12,7 @@ from typing import Sequence
 from .agent.loop import AgentContextError, AgentLoop, AgentOutputError, LLMProviderError
 from .engine.attest import AttestationEngine, CancellationError, Verdict
 from .engine.claim import Claim, ClaimValidationError
+from .engine.flow import NegativePathRunner
 from .engine.receipts import ReceiptLog
 from .engine.session import Session
 from .mcp.client import BinanceMCPClient, MCPError
@@ -88,6 +89,7 @@ def run_agent(
     receipts_file: str,
     confirm_live_write: bool,
     cancel_after_attestation: bool,
+    disconnect_before_order: bool,
 ) -> int:
     if not confirm_live_write:
         print("agent=blocked reason=explicit live-write confirmation is required", file=sys.stderr)
@@ -99,6 +101,10 @@ def run_agent(
         session.connect()
         session.activate()
         engine = AttestationEngine(client, session)
+        if disconnect_before_order:
+            output = NegativePathRunner(client, session, engine).run(claim).to_mapping()
+            print(json.dumps(output, sort_keys=True))
+            return 0
         result = engine.place_and_attest(claim)
         output = {"claim": claim.to_mapping(), "attestation": result.to_mapping()}
         if cancel_after_attestation and result.order_id is not None:
@@ -157,6 +163,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="cancel the known order after attestation, including cleanup after an unproved readback",
     )
+    agent_parser.add_argument(
+        "--disconnect-before-order",
+        action="store_true",
+        help="sever the gateway after claim generation to prove the blocked negative path",
+    )
     args = parser.parse_args(argv)
     if args.command == "smoke":
         return smoke()
@@ -176,6 +187,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.receipts_file,
             args.confirm_live_write,
             args.cancel_after_attestation,
+            args.disconnect_before_order,
         )
     parser.error("unknown command")
     return 2

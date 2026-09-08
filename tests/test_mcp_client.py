@@ -10,6 +10,7 @@ from qualto.mcp.client import (
     BinanceMCPClient,
     CodexCredentialProvider,
     CredentialError,
+    MCPTransportError,
     ToolNotAllowedError,
 )
 
@@ -76,6 +77,28 @@ def test_client_rejects_non_object_gateway_arguments(tmp_path: Path) -> None:
 
     with pytest.raises(TypeError, match="object"):
         client.call_visible_tool("tool_search", ["not-an-object"])  # type: ignore[arg-type]
+
+
+def test_client_disconnect_blocks_requests_until_reconnect(tmp_path: Path) -> None:
+    credentials_path = tmp_path / "credentials.json"
+    write_credentials(credentials_path)
+    client = BinanceMCPClient(CodexCredentialProvider(credentials_path))
+    client.disconnect()
+    assert not client.connected
+    with pytest.raises(MCPTransportError, match="disconnected"):
+        client.initialize()
+    client.reconnect()
+    assert client.connected
+
+    calls: list[str] = []
+
+    def fake_request(method, params):
+        calls.append(method)
+        return {"result": {"protocolVersion": "2025-03-26"}}
+
+    client._request = fake_request  # type: ignore[method-assign]
+    assert client.initialize()["protocolVersion"] == "2025-03-26"
+    assert calls == ["initialize"]
 
 
 def test_client_decodes_sse_and_nested_tool_result(tmp_path: Path) -> None:

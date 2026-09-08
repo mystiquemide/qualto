@@ -19,6 +19,7 @@ from .claim import (
     mint_claim_id,
 )
 from .receipts import ReceiptLog
+from .flow import NegativePathResult, NegativePathRunner
 from .session import (
     ClaimReplayError,
     Session,
@@ -39,6 +40,8 @@ __all__ = [
     "ExchangeOrder",
     "OrderSide",
     "OrderType",
+    "NegativePathResult",
+    "NegativePathRunner",
     "ReceiptLog",
     "RetryPolicy",
     "Session",

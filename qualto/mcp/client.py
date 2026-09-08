@@ -157,12 +157,32 @@ class BinanceMCPClient:
         self._next_request_id = 1
         self._initialized = False
         self._protocol_version: str | None = None
+        self._connected = True
 
     @property
     def protocol_version(self) -> str | None:
         return self._protocol_version
 
+    @property
+    def connected(self) -> bool:
+        return self._connected
+
+    def disconnect(self) -> None:
+        """Disable all MCP calls until an explicit reconnect."""
+
+        self._connected = False
+        self._initialized = False
+
+    def reconnect(self) -> None:
+        """Restore MCP calls and require a fresh initialize handshake."""
+
+        self._connected = True
+        self._initialized = False
+        self._protocol_version = None
+
     def _request(self, method: str, params: Mapping[str, Any]) -> Mapping[str, Any]:
+        if not self._connected:
+            raise MCPTransportError("Binance MCP gateway is disconnected")
         credential = self.credential_provider.load()
         request_id = self._next_request_id
         self._next_request_id += 1
