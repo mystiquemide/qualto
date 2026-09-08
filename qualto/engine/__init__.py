@@ -27,6 +27,7 @@ from .session import (
     SessionClosedError,
     SessionState,
 )
+from .verify import ReceiptVerification, VerificationError, verify_receipts
 
 __all__ = [
     "Attestation",
@@ -43,12 +44,15 @@ __all__ = [
     "OrderSide",
     "OrderType",
     "ReceiptLog",
+    "ReceiptVerification",
     "RetryPolicy",
     "Session",
     "SessionBlockedError",
     "SessionClosedError",
     "SessionState",
     "Verdict",
+    "VerificationError",
     "compare_claim_to_order",
     "mint_claim_id",
+    "verify_receipts",
 ]

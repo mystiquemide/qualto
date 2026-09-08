@@ -382,3 +382,28 @@ def test_cleanup_cli_requires_explicit_confirmation(tmp_path: Path, capsys) -> N
 
     assert main(["cleanup", "--claim-file", str(claim_file)]) == 2
     assert "confirmation is required" in capsys.readouterr().err
+
+
+def test_verify_cli_reports_read_only_live_match(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    monkeypatch.setattr(cli, "BinanceMCPClient", FakeGateway)
+    receipts_file = tmp_path / "receipts.jsonl"
+    receipts_file.write_text(
+        json.dumps(
+            {
+                "event": "claim_attestation",
+                "claim": valid_claim().to_mapping(),
+                "attestation": {"orderId": 1001, "verdict": "PROVED"},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    assert main(["verify", "--receipts-file", str(receipts_file)]) == 0
+
+    output = capsys.readouterr().out
+    assert "claimId" in output
+    assert "qualto-claim-abcdefghijkl" in output
+    assert "PROVED\tPROVED\tyes" in output

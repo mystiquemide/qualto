@@ -20,6 +20,7 @@ from .engine.claim import Claim, ClaimValidationError
 from .engine.flow import NegativePathRunner
 from .engine.receipts import ReceiptLog
 from .engine.session import Session, SessionState
+from .engine.verify import VerificationError, verify_receipts
 from .mcp.client import BinanceMCPClient, MCPError
 
 
@@ -151,6 +152,33 @@ def run_cleanup(claim_file: str, receipts_file: str, confirm_live_write: bool) -
     return 0
 
 
+def run_verify(receipts_file: str) -> int:
+    """Re-verify receipt verdicts against live Binance order readbacks."""
+
+    try:
+        results = verify_receipts(receipts_file, BinanceMCPClient())
+    except (OSError, MCPError, VerificationError, ValueError) as exc:
+        print(f"verify=error reason={exc}", file=sys.stderr)
+        return 1
+
+    print("claimId\torderId\trecorded\tlive\tmatch\treason")
+    for result in results:
+        live_verdict = "-" if result.live_verdict is None else result.live_verdict.value
+        print(
+            "\t".join(
+                [
+                    result.claim_id,
+                    "-" if result.order_id is None else str(result.order_id),
+                    result.recorded_verdict or "-",
+                    live_verdict,
+                    "yes" if result.matched else "no",
+                    result.reason,
+                ]
+            )
+        )
+    return 0 if all(result.matched for result in results) else 1
+
+
 def run_agent(
     mandate: str,
     symbol: str,
@@ -273,6 +301,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="explicitly authorize the live cancellation request",
     )
+    verify_parser = subparsers.add_parser(
+        "verify", help="re-verify claim receipts with read-only Binance reads"
+    )
+    verify_parser.add_argument(
+        "--receipts-file",
+        default="runtime/receipts.jsonl",
+        help="append-only JSONL receipt path to verify",
+    )
     agent_parser = subparsers.add_parser(
         "agent", help="generate, attest, and optionally cancel one claim"
     )
@@ -320,6 +356,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.receipts_file,
             args.confirm_live_write,
         )
+    if args.command == "verify":
+        return run_verify(args.receipts_file)
     if args.command == "agent":
         return run_agent(
             args.mandate,
