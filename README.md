@@ -180,7 +180,6 @@ Web console: `cd web && npm install && npm run dev`.
 | **Claude Code / Claude Desktop** | Install the agent skill (`~/.claude/skills/`) and/or connect `qualto-mcp` as a stdio MCP server ([config](examples/mcp/mcp-client.json)). | Supported |
 | **Qwen Code** | Same skill installs to `~/.qwen/skills/`. | Supported |
 | **Any MCP-compatible client** | `pip install -e ".[mcp]"` then `qualto-mcp`. | Supported |
-| ChatGPT / Devin | Require remote HTTP MCP; `qualto-mcp` is stdio-only today. | Not implemented |
 
 ## Binance Integration
 
