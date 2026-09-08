@@ -33,6 +33,7 @@ htmlcov/
 # Internal workspace instructions
 AGENTS.md
 CLAUDE.md
+WIN_PLAN.md
 docs/PRD.md
 docs/TASKS.md
 *audit*.md
