@@ -12,9 +12,11 @@
 
 # Qualto
 
-**Qualto is a verification-first AI trading agent built on Binance Agent OS.**
+**Qualto is a bounded, verification-first AI trading agent built on Binance Agent OS.**
 
 It can reason about a trading mandate and execute on Binance — but it isn't allowed to claim an order succeeded until Binance itself proves it.
+
+The LLM decides what claim to propose. Qualto's deterministic boundary decides whether it may execute. Binance decides whether the resulting claim is true.
 
 > **If Binance can't prove it, the agent can't claim it.**
 
@@ -57,7 +59,7 @@ Of the 366 tools Agent OS exposes, Qualto admits exactly 6 (spot account, ticker
 
 ## What We Built
 
-**An AI agent that runs, trades live, and cannot lie about fills — plus the verification layer that guarantees it.**
+**An AI trading agent whose execution claims must be proven by Binance, plus the verification layer that enforces it.**
 
 | Capability | Status |
 |---|---|
