@@ -220,3 +220,18 @@ def test_failed_cancellation_blocks_the_session(tmp_path: Path) -> None:
         engine.cancel_order(claim, 1001)
 
     assert engine.session.block_reason == "order cancellation could not be proved"
+
+
+def test_blocked_session_rejects_new_order_but_allows_known_order_cleanup(tmp_path: Path) -> None:
+    gateway = FakeGateway()
+    engine = make_engine(tmp_path, gateway)
+    claim = make_claim()
+    engine.place_and_attest(claim)
+    engine.session.block("forced failure")
+
+    with pytest.raises(Exception):
+        engine.place_and_attest(make_claim(claimId="qualto-claim-abcdefghijkl"))
+
+    cancelled = engine.cancel_order(claim, 1001)
+
+    assert cancelled.status == "CANCELED"

@@ -57,3 +57,8 @@ def test_propose_cli_prints_claim_without_order(monkeypatch, capsys) -> None:
 
     assert main(["propose", "--mandate", "buy 5 USDT of BNB"]) == 0
     assert '"claimId": "qualto-claim-abcdefghijkl"' in capsys.readouterr().out
+
+
+def test_agent_cli_requires_explicit_live_write_confirmation(capsys) -> None:
+    assert main(["agent", "--mandate", "buy 5 USDT of BNB"]) == 2
+    assert "confirmation is required" in capsys.readouterr().err

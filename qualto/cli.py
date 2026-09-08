@@ -66,8 +66,8 @@ def run_claim(
         result = engine.place_and_attest(claim)
         output = result.to_mapping()
         if cancel_after_attestation:
-            if result.verdict is not Verdict.PROVED or result.order_id is None:
-                print("claim=error reason=attestation was not proved; cancellation skipped", file=sys.stderr)
+            if result.order_id is None:
+                print("claim=error reason=no known order ID; cancellation skipped", file=sys.stderr)
                 return 1
             cancelled = engine.cancel_order(claim, result.order_id)
             output["cancellation"] = {
@@ -77,6 +77,39 @@ def run_claim(
             }
     except (OSError, json.JSONDecodeError, ClaimValidationError, CancellationError, MCPError, ValueError) as exc:
         print(f"claim=error reason={exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(output, sort_keys=True))
+    return 0 if result.verdict is Verdict.PROVED else 1
+
+
+def run_agent(
+    mandate: str,
+    symbol: str,
+    receipts_file: str,
+    confirm_live_write: bool,
+    cancel_after_attestation: bool,
+) -> int:
+    if not confirm_live_write:
+        print("agent=blocked reason=explicit live-write confirmation is required", file=sys.stderr)
+        return 2
+    try:
+        client = BinanceMCPClient()
+        claim = AgentLoop(client).generate_claim(mandate, symbol=symbol)
+        session = Session(f"session-{uuid.uuid4().hex[:12]}", ReceiptLog(receipts_file))
+        session.connect()
+        session.activate()
+        engine = AttestationEngine(client, session)
+        result = engine.place_and_attest(claim)
+        output = {"claim": claim.to_mapping(), "attestation": result.to_mapping()}
+        if cancel_after_attestation and result.order_id is not None:
+            cancelled = engine.cancel_order(claim, result.order_id)
+            output["cancellation"] = {
+                "orderId": cancelled.order_id,
+                "status": cancelled.status,
+                "verdict": Verdict.PROVED.value,
+            }
+    except (OSError, json.JSONDecodeError, AgentContextError, AgentOutputError, ClaimValidationError, CancellationError, LLMProviderError, MCPError, ValueError) as exc:
+        print(f"agent=error reason={exc}", file=sys.stderr)
         return 1
     print(json.dumps(output, sort_keys=True))
     return 0 if result.verdict is Verdict.PROVED else 1
@@ -106,6 +139,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="cancel the proved order immediately after dual readback",
     )
+    agent_parser = subparsers.add_parser("agent", help="generate, attest, and optionally cancel one claim")
+    agent_parser.add_argument("--mandate", required=True, help="free-text operator mandate")
+    agent_parser.add_argument("--symbol", default="BNBUSDT", help="uppercase Binance spot symbol")
+    agent_parser.add_argument(
+        "--receipts-file",
+        default="runtime/receipts.jsonl",
+        help="append-only JSONL receipt path",
+    )
+    agent_parser.add_argument(
+        "--confirm-live-write",
+        action="store_true",
+        help="explicitly authorize the live order request",
+    )
+    agent_parser.add_argument(
+        "--cancel-after-attestation",
+        action="store_true",
+        help="cancel the known order after attestation, including cleanup after an unproved readback",
+    )
     args = parser.parse_args(argv)
     if args.command == "smoke":
         return smoke()
@@ -114,6 +165,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "claim":
         return run_claim(
             args.claim_file,
+            args.receipts_file,
+            args.confirm_live_write,
+            args.cancel_after_attestation,
+        )
+    if args.command == "agent":
+        return run_agent(
+            args.mandate,
+            args.symbol,
             args.receipts_file,
             args.confirm_live_write,
             args.cancel_after_attestation,

@@ -310,7 +310,7 @@ class AttestationEngine:
     def cancel_order(self, claim: Claim, order_id: int) -> ExchangeOrder:
         """Cancel and validate the exact claim-bound exchange order."""
 
-        self.session.assert_can_write()
+        self.session.assert_can_manage_order()
         try:
             response = self.gateway.execute(
                 "spot.deleteOrder", {"symbol": claim.symbol, "orderId": order_id}

@@ -60,6 +60,13 @@ class Session:
         if self.state is not SessionState.ACTIVE:
             raise RuntimeError("session is not active")
 
+    def assert_can_manage_order(self) -> None:
+        """Allow cleanup of a known order while a blocked session is unresolved."""
+
+        self._require_not_closed()
+        if self.state not in {SessionState.ACTIVE, SessionState.BLOCKED}:
+            raise RuntimeError("session cannot manage an order from its current state")
+
     def reserve_claim_id(self, claim_id: str) -> None:
         self.assert_can_write()
         if claim_id in self._used_claim_ids:
