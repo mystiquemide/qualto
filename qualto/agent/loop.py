@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import Any, Mapping, Protocol
+from typing import Any, Protocol
 
 from ..engine.claim import Claim, ClaimValidationError, mint_claim_id
 
@@ -25,7 +26,9 @@ class LLMProviderError(RuntimeError):
 
 
 class ContextGateway(Protocol):
-    def execute(self, tool_name: str, arguments: Mapping[str, Any] | None = None) -> Any:
+    def execute(
+        self, tool_name: str, arguments: Mapping[str, Any] | None = None
+    ) -> Any:
         """Execute one allowlisted context operation."""
 
 
@@ -59,7 +62,7 @@ class HermesLLM:
         binary: str | None = None,
         timeout_seconds: float = 90.0,
     ) -> None:
-        self.binary = binary or os.getenv("QUALTO_HERMES_BIN", "hermes")
+        self.binary = binary or os.getenv("QUALTO_HERMES_BIN") or "hermes"
         self.timeout_seconds = timeout_seconds
 
     def complete(self, prompt: str) -> str:
@@ -117,7 +120,11 @@ class AgentLoop:
     def generate_claim(self, mandate: str, *, symbol: str = "BNBUSDT") -> Claim:
         if not isinstance(mandate, str) or not 1 <= len(mandate.strip()) <= 500:
             raise ValueError("mandate must contain 1 to 500 characters")
-        if not isinstance(symbol, str) or not symbol.isalnum() or symbol.upper() != symbol:
+        if (
+            not isinstance(symbol, str)
+            or not symbol.isalnum()
+            or symbol.upper() != symbol
+        ):
             raise ValueError("symbol must be uppercase alphanumeric text")
         context = self._read_context(symbol)
         claim_id = mint_claim_id()
@@ -127,7 +134,11 @@ class AgentLoop:
             try:
                 response = self.llm.complete(prompt)
                 return self._parse_claim(response, claim_id, mandate, symbol)
-            except (json.JSONDecodeError, ClaimValidationError, AgentOutputError) as exc:
+            except (
+                json.JSONDecodeError,
+                ClaimValidationError,
+                AgentOutputError,
+            ) as exc:
                 last_error = exc
                 if attempt < self.max_retries:
                     prompt = self._retry_prompt(mandate, claim_id, context)
@@ -135,7 +146,9 @@ class AgentLoop:
                     raise
             except LLMProviderError:
                 raise
-        raise AgentOutputError("LLM output was invalid after bounded retries") from last_error
+        raise AgentOutputError(
+            "LLM output was invalid after bounded retries"
+        ) from last_error
 
     def _read_context(self, symbol: str) -> MarketContext:
         try:
@@ -185,10 +198,7 @@ class AgentLoop:
 
     @staticmethod
     def _parse_claim(response: str, claim_id: str, mandate: str, symbol: str) -> Claim:
-        try:
-            payload = json.loads(response)
-        except json.JSONDecodeError:
-            raise
+        payload = json.loads(response)
         claim = Claim.from_mapping(payload)
         if claim.claim_id != claim_id:
             raise AgentOutputError("LLM changed the harness-assigned claim ID")

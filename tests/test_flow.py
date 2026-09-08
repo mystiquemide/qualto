@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from qualto.engine.attest import AttestationEngine
 from qualto.engine.claim import Claim
@@ -38,7 +39,9 @@ class ToggleGateway:
     def reconnect(self) -> None:
         self.connected = True
 
-    def execute(self, tool_name: str, arguments: Mapping[str, Any] | None = None) -> Any:
+    def execute(
+        self, tool_name: str, arguments: Mapping[str, Any] | None = None
+    ) -> Any:
         self.calls.append((tool_name, dict(arguments or {})))
         if not self.connected:
             raise RuntimeError("gateway disconnected")
@@ -78,15 +81,18 @@ def test_disconnect_produces_unproved_block_and_recovery(tmp_path: Path) -> None
     assert result.recovered_state is SessionState.ACTIVE
     assert result.gateway_disconnected
     assert gateway.calls == [
-        ("spot.newOrder", {
-            "symbol": "BNBUSDT",
-            "side": "BUY",
-            "type": "LIMIT",
-            "quantity": 0.009,
-            "newClientOrderId": "qualto-claim-abcdefghijkl",
-            "price": 600,
-            "timeInForce": "GTC",
-        })
+        (
+            "spot.newOrder",
+            {
+                "symbol": "BNBUSDT",
+                "side": "BUY",
+                "type": "LIMIT",
+                "quantity": 0.009,
+                "newClientOrderId": "qualto-claim-abcdefghijkl",
+                "price": 600,
+                "timeInForce": "GTC",
+            },
+        )
     ]
     assert [entry["event"] for entry in session.receipts.entries()] == [
         "claim_attestation",

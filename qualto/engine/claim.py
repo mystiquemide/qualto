@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import re
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
-from typing import Any, Mapping
+from typing import Any
 
 
 class ClaimValidationError(ValueError):
@@ -36,7 +37,7 @@ _SYMBOL_PATTERN = re.compile(r"^[A-Z0-9]{5,20}$")
 
 
 def _decimal(value: Any, field_name: str) -> Decimal:
-    if isinstance(value, bool) or isinstance(value, float):
+    if isinstance(value, (bool, float)):
         raise ClaimValidationError(f"{field_name} must be a decimal string or integer")
     try:
         result = Decimal(str(value))
@@ -69,7 +70,9 @@ def mint_claim_id(suffix: str | None = None) -> str:
 
     token = suffix if suffix is not None else uuid.uuid4().hex[:12]
     if not isinstance(token, str) or not re.fullmatch(r"[a-z0-9]{12}", token):
-        raise ClaimValidationError("claim ID suffix must contain exactly 12 lowercase alphanumerics")
+        raise ClaimValidationError(
+            "claim ID suffix must contain exactly 12 lowercase alphanumerics"
+        )
     return f"qualto-claim-{token}"
 
 
@@ -88,30 +91,46 @@ class Claim:
     reason: str
 
     def __post_init__(self) -> None:
-        if not isinstance(self.claim_id, str) or not _CLAIM_ID_PATTERN.fullmatch(self.claim_id):
+        if not isinstance(self.claim_id, str) or not _CLAIM_ID_PATTERN.fullmatch(
+            self.claim_id
+        ):
             raise ClaimValidationError("claim_id has an invalid format")
-        if not isinstance(self.mandate, str) or not 1 <= len(self.mandate.strip()) <= 500:
+        if (
+            not isinstance(self.mandate, str)
+            or not 1 <= len(self.mandate.strip()) <= 500
+        ):
             raise ClaimValidationError("mandate must contain 1 to 500 characters")
-        if not isinstance(self.symbol, str) or not _SYMBOL_PATTERN.fullmatch(self.symbol):
+        if not isinstance(self.symbol, str) or not _SYMBOL_PATTERN.fullmatch(
+            self.symbol
+        ):
             raise ClaimValidationError("symbol must be uppercase alphanumeric text")
         if not isinstance(self.side, OrderSide):
             raise ClaimValidationError("side is invalid")
         if not isinstance(self.order_type, OrderType):
             raise ClaimValidationError("order_type is invalid")
-        if not isinstance(self.quantity, Decimal) or self.quantity <= 0 or not self.quantity.is_finite():
+        if (
+            not isinstance(self.quantity, Decimal)
+            or self.quantity <= 0
+            or not self.quantity.is_finite()
+        ):
             raise ClaimValidationError("quantity must be a finite positive decimal")
         if self.order_type is OrderType.LIMIT:
             if self.price is None or self.price <= 0 or not self.price.is_finite():
-                raise ClaimValidationError("limit claims require a finite positive price")
+                raise ClaimValidationError(
+                    "limit claims require a finite positive price"
+                )
         elif self.price is not None:
             raise ClaimValidationError("market claims cannot include a limit price")
         if not isinstance(self.status, ClaimStatus):
             raise ClaimValidationError("status is invalid")
-        if not isinstance(self.reason, str) or not 1 <= len(self.reason.strip()) <= 1000:
+        if (
+            not isinstance(self.reason, str)
+            or not 1 <= len(self.reason.strip()) <= 1000
+        ):
             raise ClaimValidationError("reason must contain 1 to 1000 characters")
 
     @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any]) -> "Claim":
+    def from_mapping(cls, payload: Mapping[str, Any]) -> Claim:
         """Parse strict external claim JSON and reject unknown fields."""
 
         if not isinstance(payload, Mapping):
@@ -146,7 +165,9 @@ class Claim:
         return cls(
             claim_id=payload["claimId"],
             mandate=payload["mandate"],
-            symbol=payload["symbol"].upper() if isinstance(payload["symbol"], str) else payload["symbol"],
+            symbol=payload["symbol"].upper()
+            if isinstance(payload["symbol"], str)
+            else payload["symbol"],
             side=side,
             order_type=order_type,
             quantity=quantity,

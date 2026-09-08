@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import os
 import time
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 
 class ReceiptLog:
@@ -25,7 +26,9 @@ class ReceiptLog:
             raise TypeError("receipt must be an object")
         record = dict(event)
         record.setdefault("timestamp", time.time())
-        serialized = json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        serialized = json.dumps(
+            record, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        )
         with self.path.open("a", encoding="utf-8") as handle:
             handle.write(serialized + "\n")
             handle.flush()

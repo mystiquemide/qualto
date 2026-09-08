@@ -6,7 +6,6 @@ import pytest
 
 from qualto.engine.claim import (
     Claim,
-    ClaimStatus,
     ClaimValidationError,
     OrderSide,
     OrderType,
@@ -55,7 +54,20 @@ def test_market_claim_omits_price() -> None:
     assert "price" not in claim.to_order_arguments()
 
 
-@pytest.mark.parametrize("field", ["claimId", "mandate", "symbol", "side", "orderType", "quantity", "price", "status", "reason"])
+@pytest.mark.parametrize(
+    "field",
+    [
+        "claimId",
+        "mandate",
+        "symbol",
+        "side",
+        "orderType",
+        "quantity",
+        "price",
+        "status",
+        "reason",
+    ],
+)
 def test_claim_rejects_missing_required_field(field: str) -> None:
     payload = valid_payload()
     del payload[field]
@@ -72,7 +84,10 @@ def test_claim_rejects_unknown_field() -> None:
         Claim.from_mapping(payload)
 
 
-@pytest.mark.parametrize("field,value", [("quantity", "0"), ("quantity", "-1"), ("price", "0"), ("price", "-1")])
+@pytest.mark.parametrize(
+    "field,value",
+    [("quantity", "0"), ("quantity", "-1"), ("price", "0"), ("price", "-1")],
+)
 def test_claim_rejects_nonpositive_numbers(field: str, value: str) -> None:
     payload = valid_payload()
     payload[field] = value

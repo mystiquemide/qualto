@@ -15,7 +15,9 @@ from qualto.mcp.client import (
 )
 
 
-def write_credentials(path: Path, *, token: str = "test-token", expires_at: int | None = None) -> None:
+def write_credentials(
+    path: Path, *, token: str = "test-token", expires_at: int | None = None
+) -> None:
     document = {
         "binance": {
             "server_name": "binance-mcp-server",
@@ -23,9 +25,7 @@ def write_credentials(path: Path, *, token: str = "test-token", expires_at: int 
             "client_id": "codex",
             "access_token": token,
             "expires_at": (
-                int(time.time() * 1000) + 60_000
-                if expires_at is None
-                else expires_at
+                int(time.time() * 1000) + 60_000 if expires_at is None else expires_at
             ),
         }
     }
@@ -116,7 +116,13 @@ def test_client_decodes_sse_and_nested_tool_result(tmp_path: Path) -> None:
                 }
             },
             {"result": {"tools": [{"name": "tool_search"}, {"name": "tool_execute"}]}},
-            {"result": {"content": [{"type": "text", "text": json.dumps({"canTrade": True})}]}},
+            {
+                "result": {
+                    "content": [
+                        {"type": "text", "text": json.dumps({"canTrade": True})}
+                    ]
+                }
+            },
         ]
     )
     client._request = lambda method, params: next(responses)  # type: ignore[method-assign]

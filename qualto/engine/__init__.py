@@ -18,8 +18,8 @@ from .claim import (
     OrderType,
     mint_claim_id,
 )
-from .receipts import ReceiptLog
 from .flow import NegativePathResult, NegativePathRunner
+from .receipts import ReceiptLog
 from .session import (
     ClaimReplayError,
     Session,
@@ -38,10 +38,10 @@ __all__ = [
     "ClaimValidationError",
     "DiffField",
     "ExchangeOrder",
-    "OrderSide",
-    "OrderType",
     "NegativePathResult",
     "NegativePathRunner",
+    "OrderSide",
+    "OrderType",
     "ReceiptLog",
     "RetryPolicy",
     "Session",

@@ -12,9 +12,10 @@ import os
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 DEFAULT_ENDPOINT = "https://agent.binance.com/mcp/agentic"
 DEFAULT_CREDENTIALS_PATH = "/root/.codex/.credentials.json"
@@ -87,9 +88,12 @@ class CodexCredentialProvider:
         server_url: str = DEFAULT_ENDPOINT,
         client_id: str = DEFAULT_CLIENT_ID,
     ) -> None:
-        configured_path = credentials_path or os.getenv(
-            "QUALTO_CODEX_CREDENTIALS_FILE", DEFAULT_CREDENTIALS_PATH
-        )
+        if credentials_path is not None:
+            configured_path = credentials_path
+        else:
+            configured_path = (
+                os.getenv("QUALTO_CODEX_CREDENTIALS_FILE") or DEFAULT_CREDENTIALS_PATH
+            )
         self.credentials_path = Path(configured_path)
         self.server_name = server_name
         self.server_url = server_url
@@ -99,8 +103,15 @@ class CodexCredentialProvider:
         try:
             with self.credentials_path.open(encoding="utf-8") as handle:
                 document = json.load(handle)
-        except (FileNotFoundError, PermissionError, json.JSONDecodeError, OSError) as exc:
-            raise CredentialError("host-managed Binance credential is unavailable") from exc
+        except (
+            FileNotFoundError,
+            PermissionError,
+            json.JSONDecodeError,
+            OSError,
+        ) as exc:
+            raise CredentialError(
+                "host-managed Binance credential is unavailable"
+            ) from exc
 
         if not isinstance(document, Mapping):
             raise CredentialError("host-managed Binance credential is malformed")
@@ -187,7 +198,12 @@ class BinanceMCPClient:
         request_id = self._next_request_id
         self._next_request_id += 1
         payload = json.dumps(
-            {"jsonrpc": "2.0", "id": request_id, "method": method, "params": dict(params)}
+            {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": method,
+                "params": dict(params),
+            }
         ).encode("utf-8")
         request = urllib.request.Request(
             self.endpoint,
@@ -201,7 +217,9 @@ class BinanceMCPClient:
             },
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+            with urllib.request.urlopen(
+                request, timeout=self.timeout_seconds
+            ) as response:
                 raw = response.read()
         except urllib.error.HTTPError as exc:
             raise MCPTransportError(f"Binance MCP HTTP {exc.code}") from exc
@@ -218,9 +236,7 @@ class BinanceMCPClient:
             raise MCPProtocolError("Binance MCP returned non-UTF-8 data") from exc
 
         candidates = [
-            line[6:]
-            for line in text.splitlines()
-            if line.startswith("data: ")
+            line[6:] for line in text.splitlines() if line.startswith("data: ")
         ]
         encoded = candidates[-1] if candidates else text.strip()
         if not encoded:
@@ -240,7 +256,10 @@ class BinanceMCPClient:
             {
                 "protocolVersion": MCP_PROTOCOL_VERSION,
                 "capabilities": {},
-                "clientInfo": {"name": self.client_name, "version": self.client_version},
+                "clientInfo": {
+                    "name": self.client_name,
+                    "version": self.client_version,
+                },
             },
         )
         result = _as_mapping(response.get("result"))
@@ -257,11 +276,15 @@ class BinanceMCPClient:
         response = self._request("tools/list", {})
         result = _as_mapping(response.get("result"))
         tools = result.get("tools")
-        if not isinstance(tools, list) or not all(isinstance(tool, Mapping) for tool in tools):
+        if not isinstance(tools, list) or not all(
+            isinstance(tool, Mapping) for tool in tools
+        ):
             raise MCPProtocolError("Binance MCP tools/list response is invalid")
         return tools
 
-    def call_visible_tool(self, tool_name: str, arguments: Mapping[str, Any] | None = None) -> Mapping[str, Any]:
+    def call_visible_tool(
+        self, tool_name: str, arguments: Mapping[str, Any] | None = None
+    ) -> Mapping[str, Any]:
         if tool_name not in {"tool_search", "tool_execute"}:
             raise ToolNotAllowedError("MCP gateway tool is not allowed")
         if arguments is not None and not isinstance(arguments, Mapping):
@@ -274,9 +297,13 @@ class BinanceMCPClient:
         )
         return _as_mapping(response.get("result"))
 
-    def execute(self, tool_name: str, arguments: Mapping[str, Any] | None = None) -> Any:
+    def execute(
+        self, tool_name: str, arguments: Mapping[str, Any] | None = None
+    ) -> Any:
         if tool_name not in ALLOWED_TOOL_NAMES:
-            raise ToolNotAllowedError("Binance operation is outside the Qualto allowlist")
+            raise ToolNotAllowedError(
+                "Binance operation is outside the Qualto allowlist"
+            )
         result = self.call_visible_tool(
             "tool_execute",
             {"toolName": tool_name, "arguments": dict(arguments or {})},

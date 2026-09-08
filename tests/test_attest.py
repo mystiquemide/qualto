@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 import pytest
 
@@ -15,7 +16,7 @@ from qualto.engine.attest import (
 )
 from qualto.engine.claim import Claim
 from qualto.engine.receipts import ReceiptLog
-from qualto.engine.session import ClaimReplayError, Session
+from qualto.engine.session import ClaimReplayError, Session, SessionBlockedError
 
 
 def claim_payload(**overrides: Any) -> dict[str, Any]:
@@ -112,12 +113,16 @@ def test_market_order_new_is_pending() -> None:
 
 
 class FakeGateway:
-    def __init__(self, order: Mapping[str, Any] | None = None, *, fail: bool = False) -> None:
+    def __init__(
+        self, order: Mapping[str, Any] | None = None, *, fail: bool = False
+    ) -> None:
         self.order = dict(order or order_payload())
         self.fail = fail
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
-    def execute(self, tool_name: str, arguments: Mapping[str, Any] | None = None) -> Any:
+    def execute(
+        self, tool_name: str, arguments: Mapping[str, Any] | None = None
+    ) -> Any:
         args = dict(arguments or {})
         self.calls.append((tool_name, args))
         if self.fail:
@@ -137,7 +142,9 @@ def make_engine(tmp_path: Path, gateway: FakeGateway) -> AttestationEngine:
     session = Session("session-001", ReceiptLog(tmp_path / "receipts.jsonl"))
     session.connect()
     session.activate()
-    return AttestationEngine(gateway, session, retry_policy=RetryPolicy(attempts=1, delay_seconds=0))
+    return AttestationEngine(
+        gateway, session, retry_policy=RetryPolicy(attempts=1, delay_seconds=0)
+    )
 
 
 def test_engine_places_claim_bound_order_and_reads_by_both_ids(tmp_path: Path) -> None:
@@ -162,13 +169,19 @@ def test_engine_places_claim_bound_order_and_reads_by_both_ids(tmp_path: Path) -
     readbacks = gateway.calls[1:]
     assert readbacks == [
         ("spot.getOrder", {"symbol": "BNBUSDT", "orderId": 1001}),
-        ("spot.getOrder", {"symbol": "BNBUSDT", "origClientOrderId": "qualto-claim-abcdefghijkl"}),
+        (
+            "spot.getOrder",
+            {"symbol": "BNBUSDT", "origClientOrderId": "qualto-claim-abcdefghijkl"},
+        ),
     ]
 
     receipt = engine.session.receipts.entries()[-1]
     assert receipt["orderResponse"] == {"orderId": 1001}
     assert receipt["readbackByOrderId"]["orderId"] == 1001
-    assert receipt["readbackByOrigClientOrderId"]["origClientOrderId"] == "qualto-claim-abcdefghijkl"
+    assert (
+        receipt["readbackByOrigClientOrderId"]["origClientOrderId"]
+        == "qualto-claim-abcdefghijkl"
+    )
 
 
 def test_engine_failure_blocks_session_and_records_receipt(tmp_path: Path) -> None:
@@ -180,7 +193,7 @@ def test_engine_failure_blocks_session_and_records_receipt(tmp_path: Path) -> No
     assert result.verdict is Verdict.UNPROVED
     entries = engine.session.receipts.entries()
     assert entries[-1]["attestation"]["verdict"] == "UNPROVED"
-    with pytest.raises(Exception):
+    with pytest.raises(SessionBlockedError):
         engine.session.assert_can_write()
 
 
@@ -205,7 +218,10 @@ def test_engine_cancels_the_exact_claim_bound_order(tmp_path: Path) -> None:
     cancelled = engine.cancel_order(claim, placed.order_id or 0)
 
     assert cancelled.status == "CANCELED"
-    assert gateway.calls[-1] == ("spot.deleteOrder", {"symbol": "BNBUSDT", "orderId": 1001})
+    assert gateway.calls[-1] == (
+        "spot.deleteOrder",
+        {"symbol": "BNBUSDT", "orderId": 1001},
+    )
     assert engine.session.receipts.entries()[-1]["verdict"] == "PROVED"
 
 
@@ -222,14 +238,16 @@ def test_failed_cancellation_blocks_the_session(tmp_path: Path) -> None:
     assert engine.session.block_reason == "order cancellation could not be proved"
 
 
-def test_blocked_session_rejects_new_order_but_allows_known_order_cleanup(tmp_path: Path) -> None:
+def test_blocked_session_rejects_new_order_but_allows_known_order_cleanup(
+    tmp_path: Path,
+) -> None:
     gateway = FakeGateway()
     engine = make_engine(tmp_path, gateway)
     claim = make_claim()
     engine.place_and_attest(claim)
     engine.session.block("forced failure")
 
-    with pytest.raises(Exception):
+    with pytest.raises(SessionBlockedError):
         engine.place_and_attest(make_claim(claimId="qualto-claim-abcdefghijkl"))
 
     cancelled = engine.cancel_order(claim, 1001)

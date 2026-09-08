@@ -11,7 +11,9 @@ from .session import Session, SessionState
 
 
 class GatewayLifecycle(Protocol):
-    connected: bool
+    @property
+    def connected(self) -> bool:
+        """Whether gateway calls are enabled."""
 
     def disconnect(self) -> None:
         """Disable gateway calls."""
@@ -60,8 +62,13 @@ class NegativePathRunner:
         disconnected = not self.gateway.connected
         attestation = self.engine.place_and_attest(claim)
         blocked_state = self.session.state
-        if attestation.verdict is not Verdict.UNPROVED or blocked_state is not SessionState.BLOCKED:
-            raise RuntimeError("disconnected gateway did not produce a blocked UNPROVED state")
+        if (
+            attestation.verdict is not Verdict.UNPROVED
+            or blocked_state is not SessionState.BLOCKED
+        ):
+            raise RuntimeError(
+                "disconnected gateway did not produce a blocked UNPROVED state"
+            )
         self.gateway.reconnect()
         self.session.recover()
         self.session.record(

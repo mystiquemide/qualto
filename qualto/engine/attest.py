@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
-from typing import Any, Callable, Mapping, Protocol
+from typing import Any, Protocol
 
+from ..mcp.client import MCPError
 from .claim import Claim, ClaimStatus, OrderType
 from .session import ClaimReplayError, Session
 
@@ -20,7 +22,9 @@ class Verdict(StrEnum):
 
 
 class Gateway(Protocol):
-    def execute(self, tool_name: str, arguments: Mapping[str, Any] | None = None) -> Any:
+    def execute(
+        self, tool_name: str, arguments: Mapping[str, Any] | None = None
+    ) -> Any:
         """Execute one allowlisted Binance operation."""
 
 
@@ -75,12 +79,12 @@ class ExchangeOrder:
     order_type: str
 
     @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any]) -> "ExchangeOrder":
+    def from_mapping(cls, payload: Mapping[str, Any]) -> ExchangeOrder:
         if not isinstance(payload, Mapping):
-            raise ValueError("exchange order is not an object")
+            raise TypeError("exchange order is not an object")
         order_id = payload.get("orderId")
-        if isinstance(order_id, bool):
-            raise ValueError("exchange order ID is invalid")
+        if isinstance(order_id, bool) or not isinstance(order_id, (str, int)):
+            raise TypeError("exchange order ID is invalid")
         try:
             order_id_int = int(order_id)
         except (TypeError, ValueError) as exc:
@@ -88,9 +92,14 @@ class ExchangeOrder:
         if order_id_int <= 0:
             raise ValueError("exchange order ID is invalid")
         required_text = ("symbol", "side", "status", "type")
-        if any(not isinstance(payload.get(key), str) or not payload[key] for key in required_text):
+        if any(
+            not isinstance(payload.get(key), str) or not payload[key]
+            for key in required_text
+        ):
             raise ValueError("exchange order text fields are invalid")
-        client_order_id = payload.get("origClientOrderId") or payload.get("clientOrderId")
+        client_order_id = payload.get("origClientOrderId") or payload.get(
+            "clientOrderId"
+        )
         if not isinstance(client_order_id, str) or not client_order_id:
             raise ValueError("exchange order client ID is invalid")
         orig_qty = _decimal(payload.get("origQty"), "origQty")
@@ -175,35 +184,92 @@ def compare_claim_to_order(claim: Claim, order: ExchangeOrder) -> Attestation:
     quantity_match = order.orig_qty == claim.quantity
     price_match = _price_matches(claim.price, order.price)
     fields = (
-        DiffField("claimId", claim.claim_id, order.orig_client_order_id, claim.claim_id == order.orig_client_order_id),
+        DiffField(
+            "claimId",
+            claim.claim_id,
+            order.orig_client_order_id,
+            claim.claim_id == order.orig_client_order_id,
+        ),
         DiffField("symbol", claim.symbol, order.symbol, claim.symbol == order.symbol),
         DiffField("side", claim.side.value, order.side, claim.side.value == order.side),
-        DiffField("quantity", format(claim.quantity, "f"), format(order.orig_qty, "f"), quantity_match),
+        DiffField(
+            "quantity",
+            format(claim.quantity, "f"),
+            format(order.orig_qty, "f"),
+            quantity_match,
+        ),
         DiffField(
             "price",
             None if claim.price is None else format(claim.price, "f"),
             format(order.price, "f"),
             price_match,
         ),
-        DiffField("status", claim.status.value, order.status, claim.status.value == order.status),
+        DiffField(
+            "status",
+            claim.status.value,
+            order.status,
+            claim.status.value == order.status,
+        ),
     )
     identity_matches = all(field.matched for field in fields[:5])
     executed_qty = format(order.executed_qty, "f")
     if not identity_matches:
-        return Attestation(claim.claim_id, Verdict.UNPROVED, order.order_id, "exchange fields do not match", fields, executed_qty)
+        return Attestation(
+            claim.claim_id,
+            Verdict.UNPROVED,
+            order.order_id,
+            "exchange fields do not match",
+            fields,
+            executed_qty,
+        )
     if order.status == "PARTIALLY_FILLED":
-        return Attestation(claim.claim_id, Verdict.PARTIAL, order.order_id, "order is partially filled", fields, executed_qty)
+        return Attestation(
+            claim.claim_id,
+            Verdict.PARTIAL,
+            order.order_id,
+            "order is partially filled",
+            fields,
+            executed_qty,
+        )
     if (
         order.status == "NEW"
         and claim.status is ClaimStatus.FILLED
         and claim.order_type is OrderType.MARKET
     ):
-        return Attestation(claim.claim_id, Verdict.PENDING, order.order_id, "market order is still pending", fields, executed_qty)
+        return Attestation(
+            claim.claim_id,
+            Verdict.PENDING,
+            order.order_id,
+            "market order is still pending",
+            fields,
+            executed_qty,
+        )
     if not fields[-1].matched:
-        return Attestation(claim.claim_id, Verdict.UNPROVED, order.order_id, "exchange status does not match", fields, executed_qty)
+        return Attestation(
+            claim.claim_id,
+            Verdict.UNPROVED,
+            order.order_id,
+            "exchange status does not match",
+            fields,
+            executed_qty,
+        )
     if claim.status is ClaimStatus.FILLED and order.executed_qty != claim.quantity:
-        return Attestation(claim.claim_id, Verdict.UNPROVED, order.order_id, "filled quantity does not match", fields, executed_qty)
-    return Attestation(claim.claim_id, Verdict.PROVED, order.order_id, "all claim fields match", fields, executed_qty)
+        return Attestation(
+            claim.claim_id,
+            Verdict.UNPROVED,
+            order.order_id,
+            "filled quantity does not match",
+            fields,
+            executed_qty,
+        )
+    return Attestation(
+        claim.claim_id,
+        Verdict.PROVED,
+        order.order_id,
+        "all claim fields match",
+        fields,
+        executed_qty,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -250,9 +316,18 @@ class AttestationEngine:
             raise
 
         try:
-            placement = self.gateway.execute("spot.newOrder", claim.to_order_arguments())
+            placement = self.gateway.execute(
+                "spot.newOrder", claim.to_order_arguments()
+            )
             order_id = int(placement["orderId"])
-        except Exception as exc:
+        except (
+            MCPError,
+            ValueError,
+            TypeError,
+            KeyError,
+            RuntimeError,
+            OSError,
+        ) as exc:
             return self._fail_closed(claim, "order placement failed", exc)
 
         last_by_order_id: dict[str, Any] | None = None
@@ -287,7 +362,14 @@ class AttestationEngine:
                         last_by_client_id,
                         attestation,
                     )
-            except Exception as exc:
+            except (
+                MCPError,
+                ValueError,
+                TypeError,
+                KeyError,
+                RuntimeError,
+                OSError,
+            ) as exc:
                 if attempt == self.retry_policy.attempts - 1:
                     return self._fail_closed(
                         claim,
@@ -322,8 +404,17 @@ class AttestationEngine:
                 or order.orig_client_order_id != claim.claim_id
                 or order.status != "CANCELED"
             ):
-                raise ValueError("exchange cancellation response does not match the claim")
-        except Exception as exc:
+                raise ValueError(
+                    "exchange cancellation response does not match the claim"
+                )
+        except (
+            MCPError,
+            ValueError,
+            TypeError,
+            KeyError,
+            RuntimeError,
+            OSError,
+        ) as exc:
             self.session.block(
                 "order cancellation could not be proved",
                 receipt={
@@ -360,7 +451,9 @@ class AttestationEngine:
                 "claim": claim.to_mapping(),
                 "orderResponse": _safe_order_receipt(placement),
                 "readbackByOrderId": _safe_order_receipt(readback_by_order_id),
-                "readbackByOrigClientOrderId": _safe_order_receipt(readback_by_client_id),
+                "readbackByOrigClientOrderId": _safe_order_receipt(
+                    readback_by_client_id
+                ),
                 "attestation": attestation.to_mapping(),
             }
         )
@@ -378,7 +471,9 @@ class AttestationEngine:
         order_id: int | None = None,
     ) -> Attestation:
         del cause
-        attestation = Attestation(claim.claim_id, Verdict.UNPROVED, order_id, reason, ())
+        attestation = Attestation(
+            claim.claim_id, Verdict.UNPROVED, order_id, reason, ()
+        )
         self.session.block(
             reason,
             receipt={

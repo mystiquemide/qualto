@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from decimal import Decimal
-from typing import Any, Mapping
+from typing import Any
 
 import pytest
 
-from qualto.agent.loop import AgentContextError, AgentLoop, AgentOutputError, LLMProviderError
+from qualto.agent.loop import (
+    AgentContextError,
+    AgentLoop,
+    AgentOutputError,
+    LLMProviderError,
+)
 from qualto.engine.claim import Claim
 
 
@@ -15,7 +21,9 @@ class FakeGateway:
         self.fail = fail
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
-    def execute(self, tool_name: str, arguments: Mapping[str, Any] | None = None) -> Any:
+    def execute(
+        self, tool_name: str, arguments: Mapping[str, Any] | None = None
+    ) -> Any:
         self.calls.append((tool_name, dict(arguments or {})))
         if self.fail:
             raise RuntimeError("gateway unavailable")
@@ -56,7 +64,9 @@ def test_loop_fetches_live_context_and_returns_valid_claim(monkeypatch) -> None:
     gateway = FakeGateway()
     llm = FakeLLM(claim_response(claimId="qualto-claim-abcdefghijkl"))
     loop = AgentLoop(gateway, llm)
-    monkeypatch.setattr("qualto.agent.loop.mint_claim_id", lambda: "qualto-claim-abcdefghijkl")
+    monkeypatch.setattr(
+        "qualto.agent.loop.mint_claim_id", lambda: "qualto-claim-abcdefghijkl"
+    )
 
     claim = loop.generate_claim("buy 5 USDT of BNB")
 
@@ -74,7 +84,9 @@ def test_loop_retries_malformed_output(monkeypatch) -> None:
     gateway = FakeGateway()
     llm = FakeLLM("not-json", claim_response(claimId="qualto-claim-abcdefghijkl"))
     loop = AgentLoop(gateway, llm)
-    monkeypatch.setattr("qualto.agent.loop.mint_claim_id", lambda: "qualto-claim-abcdefghijkl")
+    monkeypatch.setattr(
+        "qualto.agent.loop.mint_claim_id", lambda: "qualto-claim-abcdefghijkl"
+    )
 
     claim = loop.generate_claim("buy 5 USDT of BNB")
 
@@ -87,7 +99,9 @@ def test_loop_fails_after_retry_budget(monkeypatch) -> None:
     gateway = FakeGateway()
     llm = FakeLLM("bad", "still bad", "bad again")
     loop = AgentLoop(gateway, llm, max_retries=2)
-    monkeypatch.setattr("qualto.agent.loop.mint_claim_id", lambda: "qualto-claim-abcdefghijkl")
+    monkeypatch.setattr(
+        "qualto.agent.loop.mint_claim_id", lambda: "qualto-claim-abcdefghijkl"
+    )
 
     with pytest.raises(AgentOutputError, match="bounded retries"):
         loop.generate_claim("buy 5 USDT of BNB")
@@ -99,7 +113,9 @@ def test_loop_rejects_model_claim_id_change(monkeypatch) -> None:
     gateway = FakeGateway()
     llm = FakeLLM(claim_response(claimId="qualto-claim-zzzzzzzzzzzz"))
     loop = AgentLoop(gateway, llm, max_retries=0)
-    monkeypatch.setattr("qualto.agent.loop.mint_claim_id", lambda: "qualto-claim-abcdefghijkl")
+    monkeypatch.setattr(
+        "qualto.agent.loop.mint_claim_id", lambda: "qualto-claim-abcdefghijkl"
+    )
 
     with pytest.raises(AgentOutputError, match="claim ID"):
         loop.generate_claim("buy 5 USDT of BNB")
@@ -107,7 +123,9 @@ def test_loop_rejects_model_claim_id_change(monkeypatch) -> None:
 
 def test_loop_rejects_incomplete_context() -> None:
     class IncompleteGateway(FakeGateway):
-        def execute(self, tool_name: str, arguments: Mapping[str, Any] | None = None) -> Any:
+        def execute(
+            self, tool_name: str, arguments: Mapping[str, Any] | None = None
+        ) -> Any:
             if tool_name == "spot.tickerPrice":
                 return {"symbol": "BNBUSDT"}
             return super().execute(tool_name, arguments)
