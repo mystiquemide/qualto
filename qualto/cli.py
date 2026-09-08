@@ -68,7 +68,8 @@ def run_claim(
 ) -> int:
     if not confirm_live_write:
         print(
-            "claim=blocked reason=explicit live-write confirmation is required",
+            "claim=blocked reason=live-write confirmation is required; "
+            "add --confirm-live-write to authorize this real order",
             file=sys.stderr,
         )
         return 2
@@ -84,7 +85,8 @@ def run_claim(
         if cancel_after_attestation:
             if result.order_id is None:
                 print(
-                    "claim=error reason=no known order ID; cancellation skipped",
+                    "claim=error reason=no known order ID; cancellation skipped; "
+                    "run qualto cleanup --claim-file <file> to recover the order",
                     file=sys.stderr,
                 )
                 return 1
@@ -113,7 +115,8 @@ def run_cleanup(claim_file: str, receipts_file: str, confirm_live_write: bool) -
 
     if not confirm_live_write:
         print(
-            "cleanup=blocked reason=explicit live-write confirmation is required",
+            "cleanup=blocked reason=live-write confirmation is required; "
+            "add --confirm-live-write to authorize this cancellation",
             file=sys.stderr,
         )
         return 2
@@ -189,7 +192,8 @@ def run_agent(
 ) -> int:
     if not confirm_live_write:
         print(
-            "agent=blocked reason=explicit live-write confirmation is required",
+            "agent=blocked reason=live-write confirmation is required; "
+            "add --confirm-live-write to authorize this real order",
             file=sys.stderr,
         )
         return 2
@@ -210,7 +214,8 @@ def run_agent(
         if cancel_after_attestation:
             if result.order_id is None:
                 print(
-                    "agent=error reason=no known order ID; cancellation skipped",
+                    "agent=error reason=no known order ID; cancellation skipped; "
+                    "run qualto cleanup --claim-file <file> to recover the order",
                     file=sys.stderr,
                 )
                 return 1

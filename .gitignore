@@ -41,3 +41,9 @@ docs/TASKS.md
 *audit*.md
 *handoff*.md
 *scratch*.md
+
+# Next.js web app
+web/node_modules/
+web/.next/
+web/next-env.d.ts
+web/out/

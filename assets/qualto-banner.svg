@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-label="Qualto — no fill, no claim. Claim-bound orders on Binance Agent OS.">
+  <rect width="1200" height="300" fill="#0B0E11"/>
+  <g transform="translate(60,54) scale(1.5)">
+    <rect x="2" y="2" width="124" height="124" rx="26" fill="#12161C"/>
+    <line x1="46" y1="26" x2="46" y2="104" stroke="#F0B90B" stroke-width="6"/>
+    <rect x="33" y="52" width="26" height="28" rx="3" fill="#F0B90B"/>
+    <path d="M30 70 L52 92 L100 40" fill="none" stroke="#16C784" stroke-width="11" stroke-linecap="square" stroke-linejoin="miter"/>
+  </g>
+  <text x="320" y="152" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="88" font-weight="700" fill="#FFFFFF" letter-spacing="8">QUALTO</text>
+  <rect x="324" y="176" width="72" height="6" fill="#F0B90B"/>
+  <text x="324" y="222" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="36" font-weight="600" fill="#16C784">No fill, no claim.</text>
+  <text x="324" y="258" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="23" fill="#848E9C">Claim-bound orders on Binance Agent OS</text>
+</svg>
