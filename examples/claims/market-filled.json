@@ -1,0 +1,11 @@
+{
+  "claimId": "qualto-claim-market000000",
+  "mandate": "buy the requested market quantity from live context",
+  "symbol": "BNBUSDT",
+  "side": "BUY",
+  "orderType": "MARKET",
+  "quantity": "0.001",
+  "price": null,
+  "status": "FILLED",
+  "reason": "A market claim has no limit price and requires a filled exchange readback."
+}

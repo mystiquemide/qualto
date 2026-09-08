@@ -1,0 +1,11 @@
+{
+  "claimId": "qualto-claim-example00001",
+  "mandate": "buy a small BNBUSDT position below market, then cancel it",
+  "symbol": "BNBUSDT",
+  "side": "BUY",
+  "orderType": "LIMIT",
+  "quantity": "0.009",
+  "price": "600",
+  "status": "NEW",
+  "reason": "A bounded below-market limit claim that should remain unfilled until cleanup."
+}

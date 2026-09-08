@@ -1,0 +1,11 @@
+{
+  "claimId": "qualto-claim-partial00001",
+  "mandate": "buy a bounded BNBUSDT limit position",
+  "symbol": "BNBUSDT",
+  "side": "BUY",
+  "orderType": "LIMIT",
+  "quantity": "0.006",
+  "price": "700",
+  "status": "FILLED",
+  "reason": "A partial exchange fill must remain visible as PARTIAL with its executed quantity."
+}

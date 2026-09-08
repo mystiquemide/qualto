@@ -1,0 +1,11 @@
+{
+  "claimId": "qualto-claim-pending00001",
+  "mandate": "buy a bounded BNBUSDT market position",
+  "symbol": "BNBUSDT",
+  "side": "BUY",
+  "orderType": "MARKET",
+  "quantity": "0.001",
+  "price": null,
+  "status": "FILLED",
+  "reason": "A market order that still reads NEW is pending and must be retried, not falsely rejected."
+}

@@ -1,0 +1,12 @@
+{
+  "claimId": "qualto-claim-tamper000001",
+  "mandate": "buy a bounded BNBUSDT limit position",
+  "symbol": "BNBUSDT",
+  "side": "BUY",
+  "orderType": "LIMIT",
+  "quantity": "0.006",
+  "price": "700",
+  "status": "NEW",
+  "reason": "This deliberately contains an unknown field and must be rejected.",
+  "unexpected": "edited after attestation"
+}

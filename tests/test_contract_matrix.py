@@ -22,9 +22,18 @@ from qualto.mcp.client import BinanceMCPClient, ToolNotAllowedError
 SIDES = ("BUY", "SELL")
 ORDER_TYPES = ("LIMIT", "MARKET")
 STATUSES = ("NEW", "FILLED", "PARTIALLY_FILLED", "CANCELED")
-# Cover small, whole, and multi-digit decimal quantities across every claim
-# side, order type, and exchange status combination below.
-QUANTITIES = tuple(f"{index:03d}.{index:03d}" for index in range(1, 321))
+# Cover leading-zero, normal, tiny, trailing-zero, and large decimal text across
+# every claim side, order type, and exchange status combination below. Each
+# category has 128 values, giving 10,240 distinct claim-contract cases.
+QUANTITIES: tuple[str, ...] = tuple(
+    dict.fromkeys(
+        [f"{index:03d}.{index:03d}" for index in range(1, 129)]
+        + [f"{index:03d}.{(index * 7) % 1000:03d}" for index in range(1, 129)]
+        + [f"0.{index:08d}" for index in range(1, 129)]
+        + [f"{index}.000000{index:02d}" for index in range(1, 129)]
+        + [f"{index * 1000}.{index:03d}" for index in range(1, 129)]
+    )
+)
 
 
 def matrix_claim_payload(
