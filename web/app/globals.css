@@ -34,12 +34,13 @@ h1,h2,h3{color:var(--text);font-weight:700;letter-spacing:-.02em;line-height:1.1
 .skip-link:focus{left:0}
 
 /* landing nav */
-.landing .nav-links{display:flex;gap:24px;font-size:14px;font-weight:500;color:var(--muted);align-items:center}
+.landing .nav-links{display:flex;gap:24px;font-size:14px;font-weight:500;color:var(--muted);align-items:center;min-width:0}
 .landing .nav-links.nav-links-static{margin-left:auto;gap:24px}
 .landing .nav-links a:hover{color:var(--text)}
 .nav-scroll{background:none;border:none;padding:0;font:inherit;color:inherit;cursor:pointer}
 .nav-scroll:hover{color:var(--text)}
 .landing .nav-cta{margin-left:8px;flex-shrink:0}
+.topnav{overflow:hidden}
 @media(max-width:980px){
   .landing .topnav .wrap{padding:0 16px}
   .landing .nav-links{gap:16px;font-size:13px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;white-space:nowrap}
@@ -47,7 +48,8 @@ h1,h2,h3{color:var(--text);font-weight:700;letter-spacing:-.02em;line-height:1.1
   .nav-scroll{flex-shrink:0}
 }
 @media(max-width:700px){
-  .landing .nav-links-static{display:none}
+  .landing .nav-links:not(.nav-links-static){display:none}
+  .landing .nav-cta{margin-left:auto}
 }
 
 /* hero */
@@ -243,6 +245,72 @@ footer{border-top:1px solid var(--border);padding:44px 0 52px;background:var(--b
 .docs aside a{display:block;padding:5px 0;color:var(--muted);border-left:2px solid transparent;padding-left:12px;margin-left:-14px}
 .docs aside a:hover{color:var(--text)}
 .docs aside a.here{color:var(--gold);border-left-color:var(--gold)}
+
+/* ============ mobile hardening ============ */
+@media(max-width:700px){
+  /* hero: shrink vertical rhythm */
+  .hero{padding:120px 0 64px}
+  .hero h1{font-size:clamp(38px,11vw,52px)}
+  .hero .lede{font-size:16px;margin-bottom:26px}
+  .hero-note{font-size:11.5px}
+  /* sections: tighter but never empty */
+  main.landing-sections section{padding:56px 0}
+  main.landing-sections section.stats{padding:0}
+  h2{font-size:clamp(24px,7vw,30px)}
+  .lede{font-size:16px}
+  /* receipt card: keep inside viewport, scroll inside pre only */
+  .term{max-width:100%}
+  .term pre{font-size:11px;padding:14px 12px 16px;-webkit-text-size-adjust:100%}
+  /* stats */
+  .stats-in{grid-template-columns:1fr 1fr}
+  .stat{padding:22px 18px}
+  .stat .n{font-size:24px}
+  .stat .l{font-size:12px}
+  /* enforcement table: stack violation above result */
+  .enf-row{grid-template-columns:1fr}
+  .enf-row>div{padding:12px 16px;font-size:13.5px}
+  .enf-row .out{font-size:12.5px;padding-top:0}
+  .enf-head{display:none}
+  /* field diff: label row + value row */
+  .diff-row{grid-template-columns:1fr 24px;grid-template-areas:"f c" "e c" "a c";row-gap:2px;padding:10px 14px;font-size:11.5px}
+  .diff-row .f{grid-area:f;color:var(--gold)}
+  .diff-row .e{grid-area:e}
+  .diff-row .a{grid-area:a;color:var(--muted);word-break:break-all}
+  .diff-row .c{grid-area:c;align-self:start}
+  /* orders table: allow card-level scroll, shrink type */
+  .proof-grid .orders-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table.orders{font-size:11px;min-width:320px}
+  table.orders td,table.orders th{padding:9px 8px;word-break:break-all}
+  .proof-note{font-size:13px}
+  .proof-cmd{font-size:11.5px;padding:12px 14px;word-break:break-word}
+  /* perf */
+  .perf{grid-template-columns:1fr 1fr}
+  .perf-cell{padding:18px 14px}
+  .perf-cell .v{font-size:22px}
+  .perf-cell .k{font-size:11.5px}
+  .perf-line{font-size:16px;margin-top:22px}
+  /* agent */
+  .agent-grid{gap:24px}
+  .agent-copy .big{font-size:16.5px}
+  .agent-copy p{font-size:14.5px}
+  .skill-box pre{font-size:11px;padding:14px}
+  /* platform */
+  .platform-list li{font-size:14px;gap:12px;padding:13px 0}
+  .platform-ask{padding:16px 18px}
+  .platform-ask p{font-size:14px}
+  /* problem contrast */
+  .say{padding:18px}
+  .bubble{font-size:13.5px;padding:12px 14px}
+  /* steps */
+  .steps{grid-template-columns:1fr}
+  .step{padding:20px 18px 22px}
+  .step p{font-size:13.5px}
+  /* cta */
+  .cta-card{padding:18px}
+  .final .lede{margin-bottom:26px}
+  /* ticker */
+  .ticker-item{font-size:11px;padding:11px 16px}
+}
 .docs main{max-width:760px;min-width:0}
 .doc-head{padding-bottom:22px;border-bottom:1px solid var(--border);margin-bottom:6px}
 .doc-head h1{font-size:34px;margin:10px 0 8px}

@@ -178,13 +178,15 @@ export default function Home() {
             <h2>The proof lives on Binance, not on this page.</h2></Reveal>
             <Reveal delay={0.1}><div className="proof-grid">
               <div>
-                <table className="orders">
-                  <thead><tr><th>Binance order</th><th>Claim ID</th><th>Result</th></tr></thead>
-                  <tbody>
-                    <tr><td>12565050896</td><td>qualto-claim-56eda03b6069</td><td className="ok">PROVED → CANCELED</td></tr>
-                    <tr><td>12565013192</td><td>qualto-claim-live00000002</td><td className="ok">PROVED → CANCELED</td></tr>
-                  </tbody>
-                </table>
+                <div className="orders-wrap">
+                  <table className="orders">
+                    <thead><tr><th>Binance order</th><th>Claim ID</th><th>Result</th></tr></thead>
+                    <tbody>
+                      <tr><td>12565050896</td><td>qualto-claim-56eda03b6069</td><td className="ok">PROVED → CANCELED</td></tr>
+                      <tr><td>12565013192</td><td>qualto-claim-live00000002</td><td className="ok">PROVED → CANCELED</td></tr>
+                    </tbody>
+                  </table>
+                </div>
                 <p className="proof-note">Both orders are <b>still in Binance order history right now</b>, each carrying its claim ID as the client order ID. Placed as below-market dust limits, read back as PROVED, cancelled in 353 ms, confirmed at zero execution.</p>
                 <div className="proof-cmd"><span className="p">$</span> qualto verify --receipts-file receipts.jsonl<br /><span className="p">re-reads every claim against live Binance. read-only.</span></div>
               </div>
