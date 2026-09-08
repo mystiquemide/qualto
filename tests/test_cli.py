@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from qualto.engine.claim import Claim
 from qualto.cli import main
 
 
@@ -28,3 +29,31 @@ def test_claim_cli_cancel_flag_still_requires_confirmation(tmp_path: Path, capsy
 
     assert main(["claim", "--claim-file", str(claim_file), "--cancel-after-attestation"]) == 2
     assert "confirmation is required" in capsys.readouterr().err
+
+
+def test_propose_cli_prints_claim_without_order(monkeypatch, capsys) -> None:
+    payload = {
+        "claimId": "qualto-claim-abcdefghijkl",
+        "mandate": "buy 5 USDT of BNB",
+        "symbol": "BNBUSDT",
+        "side": "BUY",
+        "orderType": "LIMIT",
+        "quantity": "0.006",
+        "price": "700",
+        "status": "NEW",
+        "reason": "small bounded claim",
+    }
+
+    class FakeLoop:
+        def __init__(self, gateway) -> None:
+            self.gateway = gateway
+
+        def generate_claim(self, mandate: str, *, symbol: str) -> Claim:
+            assert mandate == "buy 5 USDT of BNB"
+            assert symbol == "BNBUSDT"
+            return Claim.from_mapping(payload)
+
+    monkeypatch.setattr("qualto.cli.AgentLoop", FakeLoop)
+
+    assert main(["propose", "--mandate", "buy 5 USDT of BNB"]) == 0
+    assert '"claimId": "qualto-claim-abcdefghijkl"' in capsys.readouterr().out

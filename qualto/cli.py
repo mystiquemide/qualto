@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 from typing import Sequence
 
+from .agent.loop import AgentContextError, AgentLoop, AgentOutputError, LLMProviderError
 from .engine.attest import AttestationEngine, CancellationError, Verdict
 from .engine.claim import Claim, ClaimValidationError
 from .engine.receipts import ReceiptLog
@@ -33,6 +34,16 @@ def smoke() -> int:
     print(f"visible_tools={len(tools)}")
     print("account_read=ok")
     print(f"nonzero_balance_records={balance_count}")
+    return 0
+
+
+def propose_claim(mandate: str, symbol: str) -> int:
+    try:
+        claim = AgentLoop(BinanceMCPClient()).generate_claim(mandate, symbol=symbol)
+    except (AgentContextError, AgentOutputError, LLMProviderError, MCPError, ValueError) as exc:
+        print(f"proposal=error reason={exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(claim.to_mapping(), sort_keys=True))
     return 0
 
 
@@ -75,6 +86,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="qualto")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("smoke", help="verify the supported Binance MCP gateway")
+    propose_parser = subparsers.add_parser("propose", help="generate one claim without placing an order")
+    propose_parser.add_argument("--mandate", required=True, help="free-text operator mandate")
+    propose_parser.add_argument("--symbol", default="BNBUSDT", help="uppercase Binance spot symbol")
     claim_parser = subparsers.add_parser("claim", help="place and attest one validated claim")
     claim_parser.add_argument("--claim-file", required=True, help="path to a claim JSON object")
     claim_parser.add_argument(
@@ -95,6 +109,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "smoke":
         return smoke()
+    if args.command == "propose":
+        return propose_claim(args.mandate, args.symbol)
     if args.command == "claim":
         return run_claim(
             args.claim_file,
