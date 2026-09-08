@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any
@@ -11,6 +12,7 @@ from qualto.agent.loop import (
     AgentContextError,
     AgentLoop,
     AgentOutputError,
+    HermesLLM,
     LLMProviderError,
 )
 from qualto.engine.claim import Claim
@@ -145,3 +147,37 @@ def test_provider_error_is_not_retried_as_model_output() -> None:
 
     with pytest.raises(LLMProviderError):
         loop.generate_claim("buy 5 USDT of BNB")
+
+
+def test_loop_enforces_an_overall_generation_deadline() -> None:
+    llm = FakeLLM(claim_response(claimId="qualto-claim-abcdefghijkl"))
+    loop = AgentLoop(FakeGateway(), llm, max_duration_seconds=1e-12)
+
+    with pytest.raises(AgentOutputError, match="time budget"):
+        loop.generate_claim("buy 5 USDT of BNB")
+
+    assert llm.prompts == []
+
+
+def test_hermes_prompt_is_sent_over_stdin_and_not_in_argv(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(command, 0, "response", "")
+
+    monkeypatch.setattr("qualto.agent.loop.subprocess.run", fake_run)
+    llm = HermesLLM(python_binary="hermes-python", timeout_seconds=90)
+
+    assert llm.complete("private prompt", timeout_seconds=12.5) == "response"
+    assert "private prompt" not in captured["command"]
+    assert captured["input"] == "private prompt"
+    assert captured["timeout"] == 12.5
+
+
+def test_hermes_rejects_missing_secure_prompt_transport(monkeypatch) -> None:
+    monkeypatch.setattr("qualto.agent.loop._hermes_python_binary", lambda _: None)
+
+    with pytest.raises(LLMProviderError, match="secure Hermes prompt transport"):
+        HermesLLM(binary="missing-hermes").complete("prompt")

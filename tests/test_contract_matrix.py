@@ -64,16 +64,16 @@ def test_claim_round_trip_matrix(
     assert round_tripped == claim
     order_arguments = claim.to_order_arguments()
     assert order_arguments["newClientOrderId"] == claim.claim_id
-    assert order_arguments["quantity"] == float(Decimal(quantity))
+    assert order_arguments["quantity"] == format(Decimal(quantity), "f")
     if order_type == "LIMIT":
-        assert order_arguments["price"] == 600
+        assert order_arguments["price"] == "600"
         assert order_arguments["timeInForce"] == "GTC"
     else:
         assert "price" not in order_arguments
 
 
-INVALID_CASES = []
-for field, values in {
+INVALID_CASES: list[tuple[str, int, Any]] = []
+invalid_values: dict[str, list[Any]] = {
     "claimId": [None, "", "qualto-claim-short", "qualto-claim-UPPERCASE"],
     "mandate": [None, "", " " * 501, 42],
     "symbol": [None, "", "bnb-usdt", "BNB-USDT"],
@@ -83,7 +83,8 @@ for field, values in {
     "price": ["0", "-1", True, "not-a-number"],
     "status": [None, "OPEN", 1, "FILLED!"],
     "reason": [None, "", " " * 1001, 42],
-}.items():
+}
+for field, values in invalid_values.items():
     for value_index, value in enumerate(values):
         INVALID_CASES.append((field, value_index, value))
 

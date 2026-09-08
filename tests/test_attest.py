@@ -9,6 +9,7 @@ import pytest
 from qualto.engine.attest import (
     AttestationEngine,
     CancellationError,
+    CleanupError,
     ExchangeOrder,
     RetryPolicy,
     Verdict,
@@ -160,9 +161,9 @@ def test_engine_places_claim_bound_order_and_reads_by_both_ids(tmp_path: Path) -
             "symbol": "BNBUSDT",
             "side": "BUY",
             "type": "LIMIT",
-            "quantity": 0.008,
+            "quantity": "0.008",
             "newClientOrderId": "qualto-claim-abcdefghijkl",
-            "price": 625.0,
+            "price": "625.00",
             "timeInForce": "GTC",
         },
     )
@@ -182,6 +183,79 @@ def test_engine_places_claim_bound_order_and_reads_by_both_ids(tmp_path: Path) -
         receipt["readbackByOrigClientOrderId"]["origClientOrderId"]
         == "qualto-claim-abcdefghijkl"
     )
+
+
+def test_order_intent_receipt_precedes_placement_and_keeps_exact_decimals(
+    tmp_path: Path,
+) -> None:
+    gateway = FakeGateway()
+    engine = make_engine(tmp_path, gateway)
+
+    engine.place_and_attest(
+        make_claim(quantity="0.000000000000000001", price="625.123456789")
+    )
+
+    entries = engine.session.receipts.entries()
+    assert entries[0]["event"] == "order_submitted"
+    assert entries[0]["claim"]["claimId"] == "qualto-claim-abcdefghijkl"
+    assert entries[0]["orderRequest"]["quantity"] == "0.000000000000000001"
+    assert entries[0]["orderRequest"]["price"] == "625.123456789"
+    assert isinstance(entries[0]["timestamp"], float)
+    assert entries[1]["event"] == "claim_attestation"
+
+
+def test_malformed_placement_can_be_recovered_by_claim_id_and_cancelled(
+    tmp_path: Path,
+) -> None:
+    class OrphanGateway(FakeGateway):
+        def execute(
+            self, tool_name: str, arguments: Mapping[str, Any] | None = None
+        ) -> Any:
+            if tool_name == "spot.newOrder":
+                self.calls.append((tool_name, dict(arguments or {})))
+                return {}
+            return super().execute(tool_name, arguments)
+
+    gateway = OrphanGateway()
+    engine = make_engine(tmp_path, gateway)
+    claim = make_claim()
+
+    result = engine.place_and_attest(claim)
+
+    assert result.verdict is Verdict.UNPROVED
+    assert engine.session.state.value == "BLOCKED"
+    assert engine.session.receipts.entries()[0]["event"] == "order_submitted"
+
+    cancelled = engine.cleanup_by_claim(claim)
+
+    assert cancelled.order_id == 1001
+    assert cancelled.status == "CANCELED"
+    assert gateway.calls[-2:] == [
+        (
+            "spot.getOrder",
+            {"symbol": "BNBUSDT", "origClientOrderId": "qualto-claim-abcdefghijkl"},
+        ),
+        ("spot.deleteOrder", {"symbol": "BNBUSDT", "orderId": 1001}),
+    ]
+    events = engine.session.receipts.entries()
+    assert [entry["event"] for entry in events[-2:]] == [
+        "order_cleanup",
+        "order_cancellation",
+    ]
+    assert "verdict" not in events[-2]
+
+
+def test_cleanup_failure_blocks_session_without_claim_verdict(tmp_path: Path) -> None:
+    gateway = FakeGateway(fail=True)
+    engine = make_engine(tmp_path, gateway)
+
+    with pytest.raises(CleanupError):
+        engine.cleanup_by_claim(make_claim())
+
+    entry = engine.session.receipts.entries()[-1]
+    assert entry["event"] == "order_cleanup"
+    assert entry["outcome"] == "unresolved"
+    assert "verdict" not in entry
 
 
 def test_engine_failure_blocks_session_and_records_receipt(tmp_path: Path) -> None:
@@ -207,6 +281,7 @@ def test_duplicate_claim_is_rejected_and_logged(tmp_path: Path) -> None:
         engine.place_and_attest(claim)
 
     assert engine.session.receipts.entries()[-1]["event"] == "claim_rejected"
+    assert "verdict" not in engine.session.receipts.entries()[-1]
 
 
 def test_engine_cancels_the_exact_claim_bound_order(tmp_path: Path) -> None:

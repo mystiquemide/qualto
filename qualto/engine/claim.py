@@ -59,12 +59,6 @@ def _decimal_text(value: Decimal) -> str:
     return format(value, "f")
 
 
-def _decimal_number(value: Decimal) -> int | float:
-    if value == value.to_integral_value():
-        return int(value)
-    return float(value)
-
-
 def mint_claim_id(suffix: str | None = None) -> str:
     """Mint a claim ID with a stable, exchange-safe alphabet."""
 
@@ -190,18 +184,22 @@ class Claim:
         }
 
     def to_order_arguments(self) -> dict[str, Any]:
-        """Create the only order payload the gateway is allowed to send."""
+        """Create the only order payload the gateway is allowed to send.
+
+        Binance accepts decimal strings for these fields. Keeping the canonical
+        text avoids converting user-approved quantities or prices through float.
+        """
 
         arguments: dict[str, Any] = {
             "symbol": self.symbol,
             "side": self.side.value,
             "type": self.order_type.value,
-            "quantity": _decimal_number(self.quantity),
+            "quantity": _decimal_text(self.quantity),
             "newClientOrderId": self.claim_id,
         }
         if self.order_type is OrderType.LIMIT:
             if self.price is None:
                 raise ClaimValidationError("limit claims require a price")
-            arguments["price"] = _decimal_number(self.price)
+            arguments["price"] = _decimal_text(self.price)
             arguments["timeInForce"] = "GTC"
         return arguments

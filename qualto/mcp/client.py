@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .. import __version__
+
 DEFAULT_ENDPOINT = "https://agent.binance.com/mcp/agentic"
 DEFAULT_CREDENTIALS_PATH = "/root/.codex/.credentials.json"
 DEFAULT_SERVER_NAME = "binance-mcp-server"
@@ -158,13 +160,13 @@ class BinanceMCPClient:
         endpoint: str = DEFAULT_ENDPOINT,
         timeout_seconds: float = 20.0,
         client_name: str = "qualto",
-        client_version: str = "0.1.0",
+        client_version: str | None = None,
     ) -> None:
         self.credential_provider = credential_provider or CodexCredentialProvider()
         self.endpoint = endpoint
         self.timeout_seconds = timeout_seconds
         self.client_name = client_name
-        self.client_version = client_version
+        self.client_version = client_version or __version__
         self._next_request_id = 1
         self._initialized = False
         self._protocol_version: str | None = None
@@ -226,10 +228,12 @@ class BinanceMCPClient:
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise MCPTransportError("Binance MCP endpoint is unavailable") from exc
 
-        return self._decode_jsonrpc(raw)
+        return self._decode_jsonrpc(raw, expected_id=request_id)
 
     @staticmethod
-    def _decode_jsonrpc(raw: bytes) -> Mapping[str, Any]:
+    def _decode_jsonrpc(
+        raw: bytes, *, expected_id: int | None = None
+    ) -> Mapping[str, Any]:
         try:
             text = raw.decode("utf-8")
         except UnicodeDecodeError as exc:
@@ -238,14 +242,30 @@ class BinanceMCPClient:
         candidates = [
             line[6:] for line in text.splitlines() if line.startswith("data: ")
         ]
-        encoded = candidates[-1] if candidates else text.strip()
-        if not encoded:
+        if not candidates:
+            candidates = [text.strip()]
+        if not any(candidates):
             raise MCPProtocolError("Binance MCP returned an empty response")
-        try:
-            response = json.loads(encoded)
-        except json.JSONDecodeError as exc:
-            raise MCPProtocolError("Binance MCP returned invalid JSON") from exc
-        response_mapping = _as_mapping(response)
+        parsed: list[Mapping[str, Any]] = []
+        for encoded in candidates:
+            if not encoded:
+                continue
+            try:
+                response = json.loads(encoded)
+            except json.JSONDecodeError as exc:
+                if expected_id is None:
+                    raise MCPProtocolError("Binance MCP returned invalid JSON") from exc
+                continue
+            parsed.append(_as_mapping(response))
+        if not parsed:
+            raise MCPProtocolError("Binance MCP returned invalid JSON")
+        if expected_id is None:
+            response_mapping = parsed[-1]
+        else:
+            matching = [item for item in parsed if item.get("id") == expected_id]
+            if not matching:
+                raise MCPProtocolError("Binance MCP response ID does not match request")
+            response_mapping = matching[-1]
         if "error" in response_mapping:
             raise MCPProtocolError("Binance MCP returned an error")
         return response_mapping

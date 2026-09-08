@@ -59,3 +59,32 @@ def test_closed_session_rejects_changes(tmp_path: Path) -> None:
 
     with pytest.raises(SessionClosedError):
         session.record({"event": "late"})
+
+
+def test_session_error_state_records_safe_failure(tmp_path: Path) -> None:
+    session = active_session(tmp_path)
+
+    session.error(
+        "agent execution failed",
+        receipt={"event": "session_error", "outcome": "error"},
+    )
+
+    assert session.state is SessionState.ERROR
+    assert session.error_reason == "agent execution failed"
+    assert session.block_reason is None
+    assert session.receipts.entries()[-1]["event"] == "session_error"
+
+
+def test_session_error_can_close_but_cannot_write_or_manage_orders(
+    tmp_path: Path,
+) -> None:
+    session = active_session(tmp_path)
+    session.error("provider failed")
+
+    with pytest.raises(RuntimeError, match="not active"):
+        session.assert_can_write()
+    with pytest.raises(RuntimeError, match="manage an order"):
+        session.assert_can_manage_order()
+
+    session.close()
+    assert session.state is SessionState.CLOSED

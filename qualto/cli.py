@@ -10,11 +10,16 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from .agent.loop import AgentContextError, AgentLoop, AgentOutputError, LLMProviderError
-from .engine.attest import AttestationEngine, CancellationError, Verdict
+from .engine.attest import (
+    AttestationEngine,
+    CancellationError,
+    CleanupError,
+    Verdict,
+)
 from .engine.claim import Claim, ClaimValidationError
 from .engine.flow import NegativePathRunner
 from .engine.receipts import ReceiptLog
-from .engine.session import Session
+from .engine.session import Session, SessionState
 from .mcp.client import BinanceMCPClient, MCPError
 
 
@@ -102,6 +107,50 @@ def run_claim(
     return 0 if result.verdict is Verdict.PROVED else 1
 
 
+def run_cleanup(claim_file: str, receipts_file: str, confirm_live_write: bool) -> int:
+    """Recover an orphan order by claim ID and cancel its exact exchange ID."""
+
+    if not confirm_live_write:
+        print(
+            "cleanup=blocked reason=explicit live-write confirmation is required",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        with Path(claim_file).open(encoding="utf-8") as handle:
+            claim = Claim.from_mapping(json.load(handle))
+        session = Session(f"session-{uuid.uuid4().hex[:12]}", ReceiptLog(receipts_file))
+        session.connect()
+        session.activate()
+        engine = AttestationEngine(BinanceMCPClient(), session)
+        cancelled = engine.cleanup_by_claim(claim)
+    except (
+        OSError,
+        json.JSONDecodeError,
+        ClaimValidationError,
+        CleanupError,
+        CancellationError,
+        MCPError,
+        ValueError,
+    ) as exc:
+        print(f"cleanup=error reason={exc}", file=sys.stderr)
+        return 1
+    print(
+        json.dumps(
+            {
+                "claim": claim.to_mapping(),
+                "cleanup": {
+                    "orderId": cancelled.order_id,
+                    "status": cancelled.status,
+                    "verdict": Verdict.PROVED.value,
+                },
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
 def run_agent(
     mandate: str,
     symbol: str,
@@ -116,12 +165,13 @@ def run_agent(
             file=sys.stderr,
         )
         return 2
+    session: Session | None = None
     try:
         client = BinanceMCPClient()
-        claim = AgentLoop(client).generate_claim(mandate, symbol=symbol)
         session = Session(f"session-{uuid.uuid4().hex[:12]}", ReceiptLog(receipts_file))
         session.connect()
         session.activate()
+        claim = AgentLoop(client).generate_claim(mandate, symbol=symbol)
         engine = AttestationEngine(client, session)
         if disconnect_before_order:
             output = NegativePathRunner(client, session, engine).run(claim).to_mapping()
@@ -129,7 +179,13 @@ def run_agent(
             return 0
         result = engine.place_and_attest(claim)
         output = {"claim": claim.to_mapping(), "attestation": result.to_mapping()}
-        if cancel_after_attestation and result.order_id is not None:
+        if cancel_after_attestation:
+            if result.order_id is None:
+                print(
+                    "agent=error reason=no known order ID; cancellation skipped",
+                    file=sys.stderr,
+                )
+                return 1
             cancelled = engine.cancel_order(claim, result.order_id)
             output["cancellation"] = {
                 "orderId": cancelled.order_id,
@@ -147,6 +203,20 @@ def run_agent(
         MCPError,
         ValueError,
     ) as exc:
+        if session is not None and session.state in {
+            SessionState.CREATED,
+            SessionState.CONNECTED,
+            SessionState.ACTIVE,
+        }:
+            session.error(
+                "agent execution failed",
+                receipt={
+                    "event": "session_error",
+                    "outcome": "error",
+                    "reason": "agent execution failed",
+                    "errorType": type(exc).__name__,
+                },
+            )
         print(f"agent=error reason={exc}", file=sys.stderr)
         return 1
     print(json.dumps(output, sort_keys=True))
@@ -186,6 +256,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--cancel-after-attestation",
         action="store_true",
         help="cancel the proved order immediately after dual readback",
+    )
+    cleanup_parser = subparsers.add_parser(
+        "cleanup", help="recover an orphan order by claim ID and cancel it"
+    )
+    cleanup_parser.add_argument(
+        "--claim-file", required=True, help="path to the original claim JSON object"
+    )
+    cleanup_parser.add_argument(
+        "--receipts-file",
+        default="runtime/receipts.jsonl",
+        help="append-only JSONL receipt path",
+    )
+    cleanup_parser.add_argument(
+        "--confirm-live-write",
+        action="store_true",
+        help="explicitly authorize the live cancellation request",
     )
     agent_parser = subparsers.add_parser(
         "agent", help="generate, attest, and optionally cancel one claim"
@@ -227,6 +313,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.receipts_file,
             args.confirm_live_write,
             args.cancel_after_attestation,
+        )
+    if args.command == "cleanup":
+        return run_cleanup(
+            args.claim_file,
+            args.receipts_file,
+            args.confirm_live_write,
         )
     if args.command == "agent":
         return run_agent(

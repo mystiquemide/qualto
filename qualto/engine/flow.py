@@ -75,7 +75,7 @@ class NegativePathRunner:
             {
                 "event": "gateway_recovery",
                 "claimId": claim.claim_id,
-                "verdict": Verdict.PROVED.value,
+                "outcome": "recovered",
                 "reason": "gateway reconnected and session recovered",
             }
         )

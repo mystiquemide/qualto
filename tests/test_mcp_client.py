@@ -2,14 +2,18 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Iterator, Mapping
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from qualto import __version__
 from qualto.mcp.client import (
     BinanceMCPClient,
     CodexCredentialProvider,
     CredentialError,
+    MCPProtocolError,
     MCPTransportError,
     ToolNotAllowedError,
 )
@@ -41,6 +45,15 @@ def test_provider_selects_registered_codex_credential(tmp_path: Path) -> None:
     assert credential.client_id == "codex"
     assert credential.access_token == "test-token"
     assert not credential.is_expired()
+
+
+def test_client_defaults_to_package_version(tmp_path: Path) -> None:
+    credentials_path = tmp_path / "credentials.json"
+    write_credentials(credentials_path)
+
+    client = BinanceMCPClient(CodexCredentialProvider(credentials_path))
+
+    assert client.client_version == __version__
 
 
 def test_provider_fails_closed_for_expired_credential(tmp_path: Path) -> None:
@@ -92,7 +105,8 @@ def test_client_disconnect_blocks_requests_until_reconnect(tmp_path: Path) -> No
 
     calls: list[str] = []
 
-    def fake_request(method, params):
+    def fake_request(method: str, params: Mapping[str, Any]) -> Mapping[str, Any]:
+        del params
         calls.append(method)
         return {"result": {"protocolVersion": "2025-03-26"}}
 
@@ -106,7 +120,7 @@ def test_client_decodes_sse_and_nested_tool_result(tmp_path: Path) -> None:
     write_credentials(credentials_path)
     client = BinanceMCPClient(CodexCredentialProvider(credentials_path))
 
-    responses = iter(
+    responses: Iterator[Mapping[str, Any]] = iter(
         [
             {
                 "result": {
@@ -125,8 +139,32 @@ def test_client_decodes_sse_and_nested_tool_result(tmp_path: Path) -> None:
             },
         ]
     )
-    client._request = lambda method, params: next(responses)  # type: ignore[method-assign]
+
+    def next_response(method: str, params: Mapping[str, Any]) -> Mapping[str, Any]:
+        del method, params
+        return next(responses)
+
+    client._request = next_response  # type: ignore[method-assign]
 
     assert client.initialize()["protocolVersion"] == "2025-03-26"
     assert len(client.list_tools()) == 2
     assert client.account_read() == {"canTrade": True}
+
+
+def test_jsonrpc_decoder_rejects_a_mismatched_response_id() -> None:
+    payload = json.dumps({"jsonrpc": "2.0", "id": 99, "result": {"ok": True}}).encode()
+
+    with pytest.raises(MCPProtocolError, match="ID"):
+        BinanceMCPClient._decode_jsonrpc(payload, expected_id=1)
+
+
+def test_jsonrpc_decoder_selects_the_matching_sse_response_id() -> None:
+    payload = (
+        b'event: message\ndata: {"jsonrpc":"2.0","id":99,"result":{"ok":false}}\n\n'
+        b'event: message\ndata: {"jsonrpc":"2.0","id":7,"result":{"ok":true}}\n\n'
+    )
+
+    response = BinanceMCPClient._decode_jsonrpc(payload, expected_id=7)
+
+    assert response["id"] == 7
+    assert response["result"] == {"ok": True}

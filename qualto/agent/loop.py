@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shutil
 import subprocess
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from typing import Any, Protocol
 
 from ..engine.claim import Claim, ClaimValidationError, mint_claim_id
@@ -23,6 +27,45 @@ class AgentOutputError(RuntimeError):
 
 class LLMProviderError(RuntimeError):
     """The configured LLM provider failed without exposing provider details."""
+
+
+_HERMES_STDIN_LAUNCHER = (
+    "import sys\n"
+    "prompt = sys.stdin.read()\n"
+    "sys.argv = ['hermes', '--toolsets', '', '--oneshot', prompt]\n"
+    "from hermes_cli.main import main\n"
+    "main()\n"
+)
+
+
+def _hermes_python_binary(binary: str) -> str | None:
+    """Find the Python interpreter behind a Hermes console entry point."""
+
+    resolved = shutil.which(binary)
+    path = Path(resolved or binary)
+    if not path.is_file():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+    first_line = text.splitlines()[0] if text.splitlines() else ""
+    if first_line.startswith("#!"):
+        shebang_interpreter = first_line[2:].strip().split()[0]
+        if "python" in Path(shebang_interpreter).name:
+            return shebang_interpreter
+
+    target_match = re.search(r'exec\s+["\']([^"\']+)["\']', text)
+    if target_match:
+        target = Path(target_match.group(1))
+        if target != path:
+            target_interpreter = _hermes_python_binary(str(target))
+            if target_interpreter is not None:
+                return target_interpreter
+
+    sibling = path.parent / "python"
+    return str(sibling) if sibling.is_file() else None
 
 
 class ContextGateway(Protocol):
@@ -60,27 +103,37 @@ class HermesLLM:
         self,
         *,
         binary: str | None = None,
+        python_binary: str | None = None,
         timeout_seconds: float = 90.0,
     ) -> None:
         self.binary = binary or os.getenv("QUALTO_HERMES_BIN") or "hermes"
+        self.python_binary = python_binary or os.getenv("QUALTO_HERMES_PYTHON")
         self.timeout_seconds = timeout_seconds
 
-    def complete(self, prompt: str) -> str:
-        command = [
-            self.binary,
-            "--toolsets",
-            "",
-            "--oneshot",
-            prompt,
-        ]
+    def complete(self, prompt: str, *, timeout_seconds: float | None = None) -> str:
+        timeout = (
+            self.timeout_seconds
+            if timeout_seconds is None
+            else min(self.timeout_seconds, timeout_seconds)
+        )
+        if timeout <= 0:
+            raise LLMProviderError("LLM provider time budget was exhausted")
+        python_binary = self.python_binary or _hermes_python_binary(self.binary)
+        if python_binary is None:
+            raise LLMProviderError("secure Hermes prompt transport is unavailable")
         try:
             completed = subprocess.run(
-                command,
+                [python_binary, "-c", _HERMES_STDIN_LAUNCHER],
                 check=False,
                 capture_output=True,
                 text=True,
-                timeout=self.timeout_seconds,
-                env=os.environ.copy(),
+                input=prompt,
+                timeout=timeout,
+                env={
+                    key: value
+                    for key, value in os.environ.items()
+                    if key not in {"PYTHONHOME", "PYTHONPATH"}
+                },
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise LLMProviderError("LLM provider is unavailable") from exc
@@ -109,13 +162,17 @@ class AgentLoop:
         *,
         quote_asset: str = "USDT",
         max_retries: int = 2,
+        max_duration_seconds: float = 120.0,
     ) -> None:
         if max_retries < 0:
             raise ValueError("max_retries cannot be negative")
+        if max_duration_seconds <= 0:
+            raise ValueError("max_duration_seconds must be positive")
         self.gateway = gateway
         self.llm = llm or HermesLLM()
         self.quote_asset = quote_asset
         self.max_retries = max_retries
+        self.max_duration_seconds = max_duration_seconds
 
     def generate_claim(self, mandate: str, *, symbol: str = "BNBUSDT") -> Claim:
         if not isinstance(mandate, str) or not 1 <= len(mandate.strip()) <= 500:
@@ -126,13 +183,15 @@ class AgentLoop:
             or symbol.upper() != symbol
         ):
             raise ValueError("symbol must be uppercase alphanumeric text")
-        context = self._read_context(symbol)
+        deadline = time.monotonic() + self.max_duration_seconds
+        self._ensure_deadline(deadline)
+        context = self._read_context(symbol, deadline)
         claim_id = mint_claim_id()
         prompt = self._prompt(mandate, claim_id, context)
         last_error: Exception | None = None
         for attempt in range(self.max_retries + 1):
             try:
-                response = self.llm.complete(prompt)
+                response = self._complete(prompt, deadline)
                 return self._parse_claim(response, claim_id, mandate, symbol)
             except (
                 json.JSONDecodeError,
@@ -141,6 +200,7 @@ class AgentLoop:
             ) as exc:
                 last_error = exc
                 if attempt < self.max_retries:
+                    self._ensure_deadline(deadline)
                     prompt = self._retry_prompt(mandate, claim_id, context)
                 elif isinstance(exc, AgentOutputError):
                     raise
@@ -150,12 +210,21 @@ class AgentLoop:
             "LLM output was invalid after bounded retries"
         ) from last_error
 
-    def _read_context(self, symbol: str) -> MarketContext:
+    def _complete(self, prompt: str, deadline: float) -> str:
+        remaining = self._remaining(deadline)
+        if isinstance(self.llm, HermesLLM):
+            return self.llm.complete(prompt, timeout_seconds=remaining)
+        return self.llm.complete(prompt)
+
+    def _read_context(self, symbol: str, deadline: float) -> MarketContext:
         try:
+            self._ensure_deadline(deadline)
             price_payload = self.gateway.execute("spot.tickerPrice", {"symbol": symbol})
+            self._ensure_deadline(deadline)
             account_payload = self.gateway.execute(
                 "spot.getAccount", {"omitZeroBalances": True}
             )
+            self._ensure_deadline(deadline)
             price = _decimal(price_payload["price"], "price")
             if price <= 0:
                 raise AgentContextError("live context price must be greater than zero")
@@ -169,6 +238,17 @@ class AgentLoop:
         except (KeyError, TypeError, StopIteration, AttributeError) as exc:
             raise AgentContextError("live Binance context is incomplete") from exc
         return MarketContext(symbol, price, self.quote_asset, available)
+
+    @staticmethod
+    def _remaining(deadline: float) -> float:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise AgentOutputError("agent generation exceeded its time budget")
+        return remaining
+
+    @classmethod
+    def _ensure_deadline(cls, deadline: float) -> None:
+        cls._remaining(deadline)
 
     @staticmethod
     def _prompt(mandate: str, claim_id: str, context: MarketContext) -> str:

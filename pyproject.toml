@@ -28,3 +28,6 @@ include = ["qualto*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.mypy]
+files = ["qualto", "tests"]

@@ -32,6 +32,10 @@ class CancellationError(RuntimeError):
     """The exchange did not confirm cancellation of the claim-bound order."""
 
 
+class CleanupError(RuntimeError):
+    """The exchange order could not be recovered by its claim client ID."""
+
+
 _ORDER_RECEIPT_FIELDS = frozenset(
     {
         "orderId",
@@ -54,6 +58,12 @@ def _safe_order_receipt(value: Any) -> dict[str, Any] | None:
     if not isinstance(value, Mapping):
         return None
     return {key: value[key] for key in _ORDER_RECEIPT_FIELDS if key in value}
+
+
+def _safe_order_request(claim: Claim) -> dict[str, Any]:
+    """Keep the pre-write intent receipt limited to the claim-bound fields."""
+
+    return dict(claim.to_order_arguments())
 
 
 def _decimal(value: Any, field_name: str) -> Decimal:
@@ -309,12 +319,21 @@ class AttestationEngine:
                 {
                     "event": "claim_rejected",
                     "claimId": claim.claim_id,
-                    "verdict": Verdict.UNPROVED.value,
+                    "outcome": "rejected",
                     "reason": "claim ID was already used in this session",
                 }
             )
             raise
 
+        self.session.record(
+            {
+                "event": "order_submitted",
+                "claim": claim.to_mapping(),
+                "orderRequest": _safe_order_request(claim),
+                "outcome": "requested",
+                "timestamp": time.time(),
+            }
+        )
         try:
             placement = self.gateway.execute(
                 "spot.newOrder", claim.to_order_arguments()
@@ -436,6 +455,50 @@ class AttestationEngine:
             }
         )
         return order
+
+    def cleanup_by_claim(self, claim: Claim) -> ExchangeOrder:
+        """Resolve an orphan order by client ID, then cancel that exact order."""
+
+        self.session.assert_can_manage_order()
+        try:
+            response = self.gateway.execute(
+                "spot.getOrder",
+                {"symbol": claim.symbol, "origClientOrderId": claim.claim_id},
+            )
+            order = ExchangeOrder.from_mapping(response)
+            if (
+                order.symbol != claim.symbol
+                or order.orig_client_order_id != claim.claim_id
+            ):
+                raise ValueError("recovered order does not match the claim")
+        except (
+            MCPError,
+            ValueError,
+            TypeError,
+            KeyError,
+            RuntimeError,
+            OSError,
+        ) as exc:
+            self.session.block(
+                "orphan order could not be resolved",
+                receipt={
+                    "event": "order_cleanup",
+                    "claimId": claim.claim_id,
+                    "outcome": "unresolved",
+                    "reason": "order lookup by claim ID failed",
+                },
+            )
+            raise CleanupError("orphan order could not be resolved") from exc
+
+        self.session.record(
+            {
+                "event": "order_cleanup",
+                "claimId": claim.claim_id,
+                "order": _safe_order_receipt(response),
+                "outcome": "resolved",
+            }
+        )
+        return self.cancel_order(claim, order.order_id)
 
     def _record_attestation(
         self,

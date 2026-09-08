@@ -38,6 +38,7 @@ class Session:
     receipts: ReceiptLog
     state: SessionState = SessionState.CREATED
     block_reason: str | None = None
+    error_reason: str | None = None
     _used_claim_ids: set[str] = field(default_factory=set, repr=False)
 
     def connect(self) -> None:
@@ -52,6 +53,7 @@ class Session:
             raise RuntimeError("session cannot become active from its current state")
         self.state = SessionState.ACTIVE
         self.block_reason = None
+        self.error_reason = None
 
     def assert_can_write(self) -> None:
         self._require_not_closed()
@@ -77,6 +79,17 @@ class Session:
         self._require_not_closed()
         self.state = SessionState.BLOCKED
         self.block_reason = reason
+        self.error_reason = None
+        if receipt is not None:
+            self.receipts.append(receipt)
+
+    def error(self, reason: str, *, receipt: dict[str, Any] | None = None) -> None:
+        """Move the session to a terminal error state and record the cause."""
+
+        self._require_not_closed()
+        self.state = SessionState.ERROR
+        self.error_reason = reason
+        self.block_reason = None
         if receipt is not None:
             self.receipts.append(receipt)
 

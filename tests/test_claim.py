@@ -37,9 +37,9 @@ def test_claim_parses_and_normalizes_order_arguments() -> None:
         "symbol": "BNBUSDT",
         "side": "BUY",
         "type": "LIMIT",
-        "quantity": 0.008,
+        "quantity": "0.008",
         "newClientOrderId": "qualto-claim-abcdefghijkl",
-        "price": 625.0,
+        "price": "625.00",
         "timeInForce": "GTC",
     }
 

@@ -87,17 +87,19 @@ def test_disconnect_produces_unproved_block_and_recovery(tmp_path: Path) -> None
                 "symbol": "BNBUSDT",
                 "side": "BUY",
                 "type": "LIMIT",
-                "quantity": 0.009,
+                "quantity": "0.009",
                 "newClientOrderId": "qualto-claim-abcdefghijkl",
-                "price": 600,
+                "price": "600",
                 "timeInForce": "GTC",
             },
         )
     ]
     assert [entry["event"] for entry in session.receipts.entries()] == [
+        "order_submitted",
         "claim_attestation",
         "gateway_recovery",
     ]
+    assert "verdict" not in session.receipts.entries()[-1]
 
 
 def test_disconnect_flow_can_be_repeated_after_recovery(tmp_path: Path) -> None:
@@ -112,8 +114,10 @@ def test_disconnect_flow_can_be_repeated_after_recovery(tmp_path: Path) -> None:
     assert gateway.connected
     assert session.state is SessionState.ACTIVE
     assert [entry["event"] for entry in session.receipts.entries()] == [
+        "order_submitted",
         "claim_attestation",
         "gateway_recovery",
+        "order_submitted",
         "claim_attestation",
         "gateway_recovery",
     ]
