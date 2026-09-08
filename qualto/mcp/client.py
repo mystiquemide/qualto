@@ -28,11 +28,11 @@ MCP_PROTOCOL_VERSION = "2025-03-26"
 ALLOWED_TOOL_NAMES = frozenset(
     {
         "spot.getAccount",
-        "spot.symbolPriceTicker",
+        "spot.tickerPrice",
         "spot.newOrder",
         "spot.getOrder",
         "spot.myTrades",
-        "spot.cancelOrder",
+        "spot.deleteOrder",
     }
 )
 

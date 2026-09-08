@@ -7,6 +7,7 @@ import pytest
 
 from qualto.engine.attest import (
     AttestationEngine,
+    CancellationError,
     ExchangeOrder,
     RetryPolicy,
     Verdict,
@@ -115,6 +116,10 @@ class FakeGateway:
             return {"orderId": self.order["orderId"]}
         if tool_name == "spot.getOrder":
             return dict(self.order)
+        if tool_name == "spot.deleteOrder":
+            cancelled = dict(self.order)
+            cancelled["status"] = "CANCELED"
+            return cancelled
         raise AssertionError(f"unexpected tool {tool_name}")
 
 
@@ -138,9 +143,9 @@ def test_engine_places_claim_bound_order_and_reads_by_both_ids(tmp_path: Path) -
             "symbol": "BNBUSDT",
             "side": "BUY",
             "type": "LIMIT",
-            "quantity": "0.008",
+            "quantity": 0.008,
             "newClientOrderId": "qualto-claim-abcdefghijkl",
-            "price": "625.00",
+            "price": 625.0,
             "timeInForce": "GTC",
         },
     )
@@ -179,3 +184,29 @@ def test_duplicate_claim_is_rejected_and_logged(tmp_path: Path) -> None:
         engine.place_and_attest(claim)
 
     assert engine.session.receipts.entries()[-1]["event"] == "claim_rejected"
+
+
+def test_engine_cancels_the_exact_claim_bound_order(tmp_path: Path) -> None:
+    gateway = FakeGateway()
+    engine = make_engine(tmp_path, gateway)
+    claim = make_claim()
+    placed = engine.place_and_attest(claim)
+
+    cancelled = engine.cancel_order(claim, placed.order_id or 0)
+
+    assert cancelled.status == "CANCELED"
+    assert gateway.calls[-1] == ("spot.deleteOrder", {"symbol": "BNBUSDT", "orderId": 1001})
+    assert engine.session.receipts.entries()[-1]["verdict"] == "PROVED"
+
+
+def test_failed_cancellation_blocks_the_session(tmp_path: Path) -> None:
+    gateway = FakeGateway()
+    engine = make_engine(tmp_path, gateway)
+    claim = make_claim()
+    engine.place_and_attest(claim)
+    gateway.fail = True
+
+    with pytest.raises(CancellationError):
+        engine.cancel_order(claim, 1001)
+
+    assert engine.session.block_reason == "order cancellation could not be proved"

@@ -3,6 +3,7 @@
 from .attest import (
     Attestation,
     AttestationEngine,
+    CancellationError,
     DiffField,
     ExchangeOrder,
     RetryPolicy,
@@ -29,6 +30,7 @@ from .session import (
 __all__ = [
     "Attestation",
     "AttestationEngine",
+    "CancellationError",
     "Claim",
     "ClaimReplayError",
     "ClaimStatus",

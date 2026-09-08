@@ -24,6 +24,10 @@ class Gateway(Protocol):
         """Execute one allowlisted Binance operation."""
 
 
+class CancellationError(RuntimeError):
+    """The exchange did not confirm cancellation of the claim-bound order."""
+
+
 _ORDER_RECEIPT_FIELDS = frozenset(
     {
         "orderId",
@@ -298,6 +302,45 @@ class AttestationEngine:
             placement=placement,
             order_id=order_id,
         )
+
+    def cancel_order(self, claim: Claim, order_id: int) -> ExchangeOrder:
+        """Cancel and validate the exact claim-bound exchange order."""
+
+        self.session.assert_can_write()
+        try:
+            response = self.gateway.execute(
+                "spot.deleteOrder", {"symbol": claim.symbol, "orderId": order_id}
+            )
+            order = ExchangeOrder.from_mapping(response)
+            if (
+                order.order_id != order_id
+                or order.symbol != claim.symbol
+                or order.orig_client_order_id != claim.claim_id
+                or order.status != "CANCELED"
+            ):
+                raise ValueError("exchange cancellation response does not match the claim")
+        except Exception as exc:
+            self.session.block(
+                "order cancellation could not be proved",
+                receipt={
+                    "event": "order_cancellation",
+                    "claimId": claim.claim_id,
+                    "orderId": order_id,
+                    "verdict": Verdict.UNPROVED.value,
+                    "reason": "order cancellation could not be proved",
+                },
+            )
+            raise CancellationError("order cancellation could not be proved") from exc
+
+        self.session.record(
+            {
+                "event": "order_cancellation",
+                "claimId": claim.claim_id,
+                "order": _safe_order_receipt(response),
+                "verdict": Verdict.PROVED.value,
+            }
+        )
+        return order
 
     def _record_attestation(
         self,
