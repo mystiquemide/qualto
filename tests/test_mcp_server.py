@@ -288,8 +288,8 @@ def test_stdio_mcp_handshake_and_status_tool() -> None:
     assert status["state"] == "ACTIVE"
 
 
-def test_claude_configuration_is_safe_by_default() -> None:
-    path = Path(__file__).parents[1] / "examples" / "mcp" / "claude-desktop.json"
+def test_generic_mcp_configuration_is_safe_by_default() -> None:
+    path = Path(__file__).parents[1] / "examples" / "mcp" / "mcp-client.json"
     document = json.loads(path.read_text(encoding="utf-8"))
 
     config = document["mcpServers"]["qualto"]
