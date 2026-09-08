@@ -69,6 +69,15 @@ def test_client_rejects_operations_outside_allowlist(tmp_path: Path) -> None:
         client.execute("wallet.withdraw", {})
 
 
+def test_client_rejects_non_object_gateway_arguments(tmp_path: Path) -> None:
+    credentials_path = tmp_path / "credentials.json"
+    write_credentials(credentials_path)
+    client = BinanceMCPClient(CodexCredentialProvider(credentials_path))
+
+    with pytest.raises(TypeError, match="object"):
+        client.call_visible_tool("tool_search", ["not-an-object"])  # type: ignore[arg-type]
+
+
 def test_client_decodes_sse_and_nested_tool_result(tmp_path: Path) -> None:
     credentials_path = tmp_path / "credentials.json"
     write_credentials(credentials_path)

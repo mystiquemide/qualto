@@ -244,6 +244,8 @@ class BinanceMCPClient:
     def call_visible_tool(self, tool_name: str, arguments: Mapping[str, Any] | None = None) -> Mapping[str, Any]:
         if tool_name not in {"tool_search", "tool_execute"}:
             raise ToolNotAllowedError("MCP gateway tool is not allowed")
+        if arguments is not None and not isinstance(arguments, Mapping):
+            raise TypeError("MCP gateway arguments must be an object")
         if not self._initialized:
             self.initialize()
         response = self._request(
