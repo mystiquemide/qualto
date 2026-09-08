@@ -65,6 +65,16 @@ def test_matching_order_is_proved() -> None:
     assert all(field.matched for field in result.fields)
 
 
+def test_exchange_order_accepts_binance_client_order_id_alias() -> None:
+    payload = order_payload()
+    payload.pop("origClientOrderId")
+    payload["clientOrderId"] = "qualto-claim-abcdefghijkl"
+
+    order = ExchangeOrder.from_mapping(payload)
+
+    assert order.orig_client_order_id == "qualto-claim-abcdefghijkl"
+
+
 @pytest.mark.parametrize(
     "field,change",
     [

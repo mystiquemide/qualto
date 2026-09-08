@@ -31,6 +31,7 @@ class CancellationError(RuntimeError):
 _ORDER_RECEIPT_FIELDS = frozenset(
     {
         "orderId",
+        "clientOrderId",
         "symbol",
         "side",
         "origClientOrderId",
@@ -86,9 +87,12 @@ class ExchangeOrder:
             raise ValueError("exchange order ID is invalid") from exc
         if order_id_int <= 0:
             raise ValueError("exchange order ID is invalid")
-        required_text = ("symbol", "side", "origClientOrderId", "status", "type")
+        required_text = ("symbol", "side", "status", "type")
         if any(not isinstance(payload.get(key), str) or not payload[key] for key in required_text):
             raise ValueError("exchange order text fields are invalid")
+        client_order_id = payload.get("origClientOrderId") or payload.get("clientOrderId")
+        if not isinstance(client_order_id, str) or not client_order_id:
+            raise ValueError("exchange order client ID is invalid")
         orig_qty = _decimal(payload.get("origQty"), "origQty")
         executed_qty = _decimal(payload.get("executedQty"), "executedQty")
         price = _decimal(payload.get("price", "0"), "price")
@@ -98,7 +102,7 @@ class ExchangeOrder:
             order_id=order_id_int,
             symbol=payload["symbol"],
             side=payload["side"],
-            orig_client_order_id=payload["origClientOrderId"],
+            orig_client_order_id=client_order_id,
             status=payload["status"],
             orig_qty=orig_qty,
             executed_qty=executed_qty,
