@@ -28,7 +28,7 @@ jobs:
         run: |
           cd web
           npm ci --no-audit --no-fund
-          npm run build
+          QUALTO_BASE_PATH=1 npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web/out

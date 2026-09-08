@@ -143,8 +143,6 @@ Qualto does not provide trading strategy, forecasting, futures, margin, withdraw
 - **Submission tweet:** TBD-REPLACE-WITH-TWEET-LINK
 - **Author:** [MystiqueMide](https://github.com/mystiquemide)
 
-**Topics:** `binance` · `agent-os` · `mcp` · `ai-agents` · `llm-agents` · `trading` · `attestation` · `verification` · `trust-and-safety` · `python`
-
 ## License
 
 [MIT](LICENSE) — © 2026 MystiqueMide
