@@ -196,7 +196,7 @@ Web console: `cd web && npm install && npm run dev`.
 ## Other Integrations
 
 - **Web console** — Next.js 15 (`web/`), deployed to [qualto.vercel.app](https://qualto.vercel.app) and GitHub Pages.
-- **Hermes** — optional LLM provider for the drafting loop.
+- **Hermes** — LLM provider for the drafting loop.
 - **CI/CD** — GitHub Actions on every push; Pages and Vercel deploy from `main`.
 
 ## Authentication
