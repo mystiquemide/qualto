@@ -117,8 +117,6 @@ All of the following is implemented and tested today (11,433 tests, ~19 s, no ne
 | Web console (landing + docs) — [qualto.vercel.app](https://qualto.vercel.app) | Shipped |
 | CI (pytest / ruff / mypy) + GitHub Pages + Vercel deploys | Shipped |
 
-Planned but **not** built: native attestation inside the Binance Agent OS console, x402 payment gating, multi-venue (`convert.orderStatus`) attestation, multi-session persistence.
-
 ## Agent Integrations
 
 | Agent | How it interacts | Status |
@@ -127,7 +125,6 @@ Planned but **not** built: native attestation inside the Binance Agent OS consol
 | **Claude Code / Claude Desktop** | Install the agent skill (`~/.claude/skills/`) for policy, and/or connect `qualto-mcp` as a stdio MCP server (config in [`examples/mcp/mcp-client.json`](examples/mcp/mcp-client.json)). | Supported |
 | **Qwen Code** | Same SKILL.md skill installs to `~/.qwen/skills/`. | Supported |
 | **Any MCP-compatible client** | `pip install -e ".[mcp]"` then run `qualto-mcp`. The client config is client-neutral. | Supported |
-| ChatGPT / Devin | Not supported: they require remote HTTP MCP endpoints; `qualto-mcp` is stdio-only today. | Not implemented |
 
 In every case the agent never places raw orders — it proposes claims, and the Qualto boundary (CLI or MCP server) is the only path to the exchange.
 
