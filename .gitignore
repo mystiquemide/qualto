@@ -1,0 +1,40 @@
+# Local secrets and configuration
+.env
+.env.*
+!.env.example
+.binance-oauth/
+token.json
+*.pem
+*.key
+
+# Local runtime state
+memory.md
+PROJECT_*.md
+receipts.jsonl
+runtime/
+*.log
+
+# Python tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Build and editor output
+dist/
+build/
+.coverage
+htmlcov/
+.DS_Store
+
+# Internal workspace instructions
+AGENTS.md
+CLAUDE.md
+docs/PRD.md
+docs/TASKS.md
+*audit*.md
+*handoff*.md
+*scratch*.md
