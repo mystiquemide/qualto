@@ -26,6 +26,7 @@ venv/
 # Build and editor output
 dist/
 build/
+*.egg-info/
 .coverage
 htmlcov/
 .DS_Store

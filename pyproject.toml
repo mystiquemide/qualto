@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qualto"
+version = "0.1.0"
+description = "Claim-bound trading receipts for Binance Agent OS."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=8.0,<9.0"]
+
+[project.scripts]
+qualto = "qualto.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["qualto*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
