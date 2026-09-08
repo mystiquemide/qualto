@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "qualto": {
+      "command": "/absolute/path/to/qualto/.venv/bin/qualto-mcp",
+      "env": {
+        "QUALTO_CODEX_CREDENTIALS_FILE": "/absolute/path/to/host-managed-credentials.json",
+        "QUALTO_RECEIPTS_FILE": "/absolute/path/to/qualto-receipts.jsonl",
+        "QUALTO_ENABLE_LIVE_WRITES": "0"
+      }
+    }
+  }
+}

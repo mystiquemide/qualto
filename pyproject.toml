@@ -9,7 +9,7 @@ description = "Claim-bound trading receipts for Binance Agent OS."
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
-dependencies = []
+dependencies = ["mcp>=1.30,<2.0"]
 
 [project.optional-dependencies]
 test = ["pytest>=9.0.3,<10.0"]
@@ -23,6 +23,7 @@ quality = [
 
 [project.scripts]
 qualto = "qualto.cli:main"
+qualto-mcp = "qualto.mcp.server:main"
 
 [tool.setuptools.packages.find]
 include = ["qualto*"]
