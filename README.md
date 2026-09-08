@@ -1,213 +1,144 @@
 <p align="center">
-  <img src="assets/qualto-banner.svg" alt="Qualto — no fill, no claim" width="880">
+  <img src="assets/qualto-banner.svg" alt="Qualto — the verification-first AI trading agent" width="880">
 </p>
 
 <p align="center">
   <a href="https://github.com/mystiquemide/qualto/actions/workflows/ci.yml"><img src="https://github.com/mystiquemide/qualto/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/Binance-Agent%20OS%20%C2%B7%20Track%20A-F0B90B?logo=binance&logoColor=black" alt="Binance Agent OS · Track A">
   <a href="https://qualto.vercel.app"><img src="https://img.shields.io/badge/live_site-qualto.vercel.app-EAECEF" alt="Live site"></a>
-  <img src="https://img.shields.io/badge/tests-11%2C433%20passing-16C784" alt="11,433 tests passing">
   <img src="https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
 </p>
 
-## Built For
+# Qualto
 
-- **Principals** — people who hand an AI agent real money on a Binance Agentic sub-account and want fills they can verify in seconds instead of trusting the agent's chat log.
-- **Agent developers** — teams building trading agents on Binance Agent OS who need their agent's reported fills to be credible to end users.
-- **The Agent OS platform** — the claim-bound order pattern is a convention Binance can adopt so every agent on the platform becomes auditable by default.
+**Qualto is a verification-first AI trading agent built on Binance Agent OS.**
 
-## One-Liner
+It can reason about a trading mandate and execute on Binance — but it isn't allowed to claim an order succeeded until Binance itself proves it.
 
-Qualto binds every AI trading claim to a live Binance order before the claim is trusted: the claim's ID is stamped inside the order, read back from the exchange, and diffed field by field — a claim Binance cannot prove locks the session and the agent stops trading.
+> **If Binance can't prove it, the agent can't claim it.**
 
-## The Product
+*Binance Agent OS Mini Hackathon · Track A*
 
-AI agents now trade real money, and their outputs narrate fills nobody can check. A confabulated fill looks identical to a real one until someone opens the exchange. Qualto closes that gap with **claim-bound orders**:
+- **Demo video:** TBD-REPLACE-WITH-TWEET-LINK
+- **Live site:** [qualto.vercel.app](https://qualto.vercel.app)
+- **Repository:** [github.com/mystiquemide/qualto](https://github.com/mystiquemide/qualto)
 
-- Before any order is placed, the agent's intent is captured as a strict JSON claim.
-- The harness — never the LLM — places the order with `newClientOrderId = claimId`, stamping the claim's identity into Binance's own order record.
-- The order is read back twice (by order ID and by claim ID), six fields are diffed, and only a full match earns a **PROVED** verdict.
-- Any failure produces **UNPROVED**, blocks the session, and refuses further writes until an operator recovers it.
+## The Problem
 
-It matters because the trust burden of agentic trading currently falls on users. Qualto moves the source of truth to the one party who already has it: the exchange.
+An AI agent can say *"I bought BNB"* whether the trade happened or not. Those reports are self-reported — the user has to independently open the exchange and check. Until then, a hallucinated fill and a real one look identical.
 
-## Our Vision
+Qualto makes Binance verify the agent's claim automatically.
 
-Verification for AI agents should not live in the agent's own dashboard. Long term, Qualto is a candidate platform primitive: **claim-bound orders as an Agent OS convention**. If Binance reserves the client-order-ID namespace for agent claims — or surfaces attestation natively in the Agent OS console — every agent on the platform becomes auditable by default, with zero new Binance infrastructure. The same claim-diff pattern generalizes to settlement ("no proof, no payment" for agentic commerce) and to multi-venue attestation.
+## How Qualto Solves It
 
-## Track
+```text
+user → AI agent → claim → Qualto boundary → Agent OS → Binance → verification → agent response
+```
 
-**Binance Agent OS Mini Hackathon — Track A (working agent).**
+1. **The agent reasons.** Given a mandate plus live Binance price and balance, the LLM drafts a strict trading claim — symbol, side, quantity, price, status — as validated JSON.
+2. **The claim gets an identity.** Before execution, the claim receives a unique ID, and Qualto stamps that ID into the Binance order itself using `newClientOrderId`.
+3. **Execution through Agent OS.** Qualto executes the order through the Binance Agent OS MCP endpoint — the agent never places raw orders.
+4. **Binance becomes the judge.** Qualto reads the order back from Binance through two lookup paths (by `orderId` and by the claim ID) and requires both readbacks to agree. Claim fields are checked against the exchange record: symbol, side, quantity, price, status.
+5. **The verdict is enforced, not advisory.** Match → `PROVED`. No match, unreadable, or unprovable → `UNPROVED` and the trading session locks — the agent cannot trade again until an operator intervenes.
 
-Qualto is built on, and load-bearing on, the sponsor stack: it authenticates through a registered Agent OS host connector and executes through the Agent OS MCP endpoint (`agent.binance.com/mcp/agentic`). Remove Binance Agent OS and nothing above survives — no placement, no readback, no verdicts, no proof. The product's core artifact, the proof, *lives inside Binance's order history*.
+When the agent claims a fill, Qualto additionally verifies the executed quantity before returning `PROVED`. Resting orders, cancellations, and partial fills are each attested against their actual exchange state.
 
-## Core Idea
+## Why Binance Agent OS Is Essential
 
-**The exchange is the judge.** Existing "agent accountability" approaches log agent behavior in their own databases — the operator must trust the logger. Qualto's verdict comes exclusively from live Binance readbacks through Agent OS. Two properties make this hard to fake:
+Qualto is load-bearing on Agent OS — remove it and nothing above survives:
 
-1. **Pre-placement binding** — the claim ID is committed into the order before execution, so a post-hoc story cannot claim credit for an arbitrary fill.
-2. **Fail-closed enforcement** — an unproved claim does not produce a warning badge; it locks the session so the agent cannot trade again until a human intervenes.
+- **Execution:** all orders go through the official Agent OS MCP endpoint (`agent.binance.com/mcp/agentic`).
+- **Authentication:** OAuth 2.1 via the registered Agent OS host connector.
+- **Market data:** live prices and balances from `spot.tickerPrice` and `spot.getAccount`.
+- **The proof itself:** Binance's order record — with the claim ID inside it — is the source of truth for every verdict. The proof lives on Binance's ledger, not in Qualto's log.
 
-## How It Works
+Of the 366 tools Agent OS exposes, Qualto admits exactly 6 (spot account, ticker, place, get, trades, cancel). Everything else is rejected before a request exists.
 
-End to end, from a mandate to a verifiable receipt:
+## What We Built
 
-1. **Mandate** — the operator gives a bounded instruction ("buy 5 USDT of BNB").
-2. **Context** — the harness fetches live price (`spot.tickerPrice`) and sub-account balance (`spot.getAccount`) and passes them, with the mandate, to the LLM.
-3. **Claim** — the LLM drafts a strict nine-field JSON claim (schema-validated; unknown fields rejected). The LLM has zero tools — it only proposes.
-4. **Intent receipt** — the claim is written to the append-only receipt log *before* placement, so an interrupted placement is always visible.
-5. **Bind** — the harness places the order with `newClientOrderId = claimId` and immediately requests cancellation if configured (zero-cost proof pattern).
-6. **Dual readback** — the order is fetched from Binance by `orderId` and by `origClientOrderId`; both readbacks must agree.
-7. **Diff** — claimId, symbol, side, quantity (exact), price (±0.5%), status.
-8. **Verdict** — PROVED / UNPROVED / PARTIAL / PENDING, written as a timestamped receipt. UNPROVED blocks the session; recovery requires an explicit operator action.
+**An AI agent that runs, trades live, and cannot lie about fills — plus the verification layer that guarantees it.**
 
-The same flow is exposed three ways: the `qualto` CLI, a standalone **MCP server** (`qualto-mcp`) for any MCP-compatible agent client, and an optional **SKILL.md agent skill** that teaches coding agents the policy.
+| Capability | Status |
+|---|---|
+| LLM agent loop: mandate → live context → reasoned claim (tools disabled, stdin prompt, 120 s budget) | Shipped, proven live |
+| Claim-bound placement + dual readback + field diff via Agent OS | Shipped, proven live |
+| Verdicts PROVED / UNPROVED / PARTIAL / PENDING with session lock | Shipped, proven live |
+| Session states ACTIVE / BLOCKED / ERROR / CLOSED, replay protection, write gates | Shipped |
+| Standalone MCP server (`qualto-mcp`, 5 tools) for any MCP-compatible client | Shipped |
+| Agent skill (`qualto-claim-bound-trading`) for Claude Code / Qwen Code | Shipped |
+| `qualto verify` — read-only re-verification of receipts against live Binance | Shipped |
+| Web console (landing + docs) — [qualto.vercel.app](https://qualto.vercel.app) | Shipped |
+| CI (pytest / ruff / mypy), GitHub Pages, Vercel auto-deploy | Shipped |
+
+Planned but **not** built: native attestation in the Agent OS console, x402 payment gating, multi-venue attestation, remote-HTTP MCP, multi-session persistence.
 
 ## Architecture
 
 ```text
 ┌───────────────────────── operator ─────────────────────────┐
-│  CLI (qualto claim / agent / verify / cleanup / smoke)     │
+│  CLI (qualto propose / claim / agent / verify / cleanup)   │
 │  Web console (Next.js — qualto.vercel.app)                 │
 └──────────┬────────────────────────────────────────────────┘
            │ mandates, claims (strict JSON)
 ┌──────────▼────────────────────────────────────────────────┐
-│ Qualto harness (Python 3.11+, zero core deps)             │
-│  engine/claim.py    strict claim schema, decimal-exact     │
-│  engine/attest.py   bind, dual readback, field diff        │
-│  engine/session.py  ACTIVE/BLOCKED/ERROR/CLOSED, replay    │
-│                     protection, write gates                │
-│  engine/receipts.py append-only JSONL, fsync, 0600         │
-│  engine/verify.py   read-only re-verification              │
-│  agent/loop.py      bounded LLM drafting (stdin prompt,    │
-│                     120 s wall clock, zero tools)          │
-│  mcp/server.py      FastMCP policy server (qualto-mcp)     │
-│  mcp/client.py      Agent OS client, request-ID matching,  │
-│                     two-layer tool allowlist               │
+│ AI agent layer                                             │
+│  LLM (Hermes): mandate + live context → one claim.         │
+│  Zero tools. Prompt over stdin. 120 s wall clock.          │
+├───────────────────────────────────────────────────────────┤
+│ Qualto boundary (Python 3.11+, zero core deps)            │
+│  claim schema      strict, decimal-exact, replay-proof     │
+│  attestation       bind → dual readback → field diff       │
+│  session           ACTIVE / BLOCKED / ERROR / CLOSED       │
+│  receipts          append-only JSONL, fsync, 0600          │
+│  MCP server        5 tools, double write gate              │
+├───────────────────────────────────────────────────────────┤
+│ Agent OS client                                            │
+│  JSON-RPC over streamable HTTP · request-ID matching ·     │
+│  two-layer tool allowlist (366 → 6)                        │
 └──────────┬────────────────────────────────────────────────┘
-           │ JSON-RPC over streamable HTTP, OAuth 2.1
+           │ OAuth 2.1 (registered host connector)
 ┌──────────▼────────────────────────────────────────────────┐
-│ Binance Agent OS MCP (agent.binance.com/mcp/agentic)       │
-│  366 tools exposed → 6 allowlisted by Qualto               │
-└──────────┬────────────────────────────────────────────────┘
-           │ spot sub-account
-┌──────────▼────────────────────────────────────────────────┐
-│ Binance — the order record IS the proof                    │
+│ Binance Agent OS MCP → Binance spot sub-account            │
+│  The order record IS the proof                             │
 └───────────────────────────────────────────────────────────┘
 ```
 
-**Agent layer** — the LLM (bundled provider: Hermes) receives the mandate plus live context and returns one claim. It has no tools, its prompt travels over stdin, and every call is bounded by a wall-clock budget. **Skill/tool layer** — the SKILL.md skill (policy) and the `qualto-mcp` server (five tools, structural boundary). **Backend** — the Python package plus the Next.js console. **Auth** — host-managed OAuth. **Data flow** — claims and verdicts land in append-only receipts; the exchange remains the source of truth.
+## Live Proof
 
-## What We Built
+Real orders, placed by the agent, still visible in Binance order history — each carrying its claim ID as the client order ID:
 
-All of the following is implemented and tested today (11,433 tests, ~19 s, no network):
-
-| Capability | Status |
-|---|---|
-| Claim schema validation (strict, decimal-exact, replay-proof) | Shipped |
-| Claim-bound placement + dual readback + 6-field diff | Shipped, proven live |
-| Verdicts PROVED / UNPROVED / PARTIAL / PENDING | Shipped |
-| Session states ACTIVE / BLOCKED / ERROR / CLOSED with write gates | Shipped |
-| Append-only receipts (fsync, 0600, intent-before-placement) | Shipped |
-| Orphan-order cleanup by claim ID | Shipped |
-| `qualto verify` — read-only re-verification against live Binance | Shipped |
-| Standalone MCP server (`qualto-mcp`, 5 tools) | Shipped |
-| Agent skill (`qualto-claim-bound-trading`) | Shipped |
-| Web console (landing + docs) — [qualto.vercel.app](https://qualto.vercel.app) | Shipped |
-| CI (pytest / ruff / mypy) + GitHub Pages + Vercel deploys | Shipped |
-
-## Agent Integrations
-
-| Agent | How it interacts | Status |
+| Binance order | Claim ID | Verdict |
 |---|---|---|
-| **OpenAI Codex** | The OAuth credential rides Codex's registered Binance Agent OS connector (`QUALTO_CODEX_CREDENTIALS_FILE`). All live proofs in this repo ran on this path. | Tested, live-proven |
-| **Claude Code / Claude Desktop** | Install the agent skill (`~/.claude/skills/`) for policy, and/or connect `qualto-mcp` as a stdio MCP server (config in [`examples/mcp/mcp-client.json`](examples/mcp/mcp-client.json)). | Supported |
-| **Qwen Code** | Same SKILL.md skill installs to `~/.qwen/skills/`. | Supported |
-| **Any MCP-compatible client** | `pip install -e ".[mcp]"` then run `qualto-mcp`. The client config is client-neutral. | Supported |
+| `12565050896` | `qualto-claim-56eda03b6069` | PROVED, then CANCELED at zero execution |
+| `12565013192` | `qualto-claim-live00000002` | PROVED, then CANCELED at zero execution |
+| `12565577634` | string-transport proof | PROVED, then CANCELED at zero execution |
 
-In every case the agent never places raw orders — it proposes claims, and the Qualto boundary (CLI or MCP server) is the only path to the exchange.
+Every live proof used the zero-cost pattern: below-market dust limit → PROVED → immediate cancel → post-cancel readback confirming zero execution. The negative path was also proven live, twice: gateway severed before placement → `UNPROVED` → session `BLOCKED` → writes refused → operator recovery.
 
-## Binance Integration
+Re-verify any receipts file against live Binance at any time:
 
-- **Endpoint:** Binance Agent OS MCP (`agent.binance.com/mcp/agentic`), JSON-RPC over streamable HTTP, protocol `2025-03-26`, OAuth 2.1 via the registered host connector.
-- **Tool funnel:** 366 tools exposed by the server → **6 allowlisted** in Qualto: `spot.getAccount`, `spot.tickerPrice`, `spot.newOrder`, `spot.getOrder`, `spot.myTrades` (reserved for fills-at-close), `spot.deleteOrder`. Anything else is rejected client-side before a request exists.
-- **Order identity:** every order is placed with `newClientOrderId = claimId`, making the attestation visible in Binance's own order history UI.
-- **Envelope:** all activity is confined to a funded Agentic sub-account; main-account funds are structurally out of reach.
-
-## Skill Integrations
-
-- **`qualto-claim-bound-trading`** (in [`skills/`](skills/qualto-trading/SKILL.md)) — teaches any SKILL.md-compatible coding agent the policy: never call Binance order endpoints directly, always go through the harness, report verdicts verbatim, never soften an UNPROVED, stop when the session locks, and use the zero-cost dust-order pattern for demos.
-- **MCP tools exposed by `qualto-mcp`:** `qualto_session_status`, `qualto_read_context` (live price + balance), `qualto_attest_claim` (place, read back, verdict), `qualto_cleanup_claim` (orphan recovery), `qualto_verify_receipts` (read-only re-check). Live writes additionally require `QUALTO_ENABLE_LIVE_WRITE=1` **and** a per-call `confirm_live_write` flag.
-
-Discovery is by standard skill-directory convention and MCP client config; the two layers compose — an agent can run the skill for policy and the MCP server for execution.
-
-## Other Integrations
-
-- **Web console** — Next.js 15 app (this repo, `web/`), deployed to [qualto.vercel.app](https://qualto.vercel.app) and GitHub Pages.
-- **Hermes** — optional LLM provider for the bundled drafting loop (stdin prompt transport, 90 s per call, 120 s total budget).
-- **CI/CD** — GitHub Actions: test/lint/type workflow on every push; Pages and Vercel deploy from `main`.
-
-## Authentication
-
-- Users do not give Qualto any Binance API keys. Authentication rides a **registered host connector's OAuth credential** (Codex) via `QUALTO_CODEX_CREDENTIALS_FILE`.
-- The credential is loaded per request, kept in memory for that request, never logged, never written to receipts, with expiry checked on every call.
-- Missing, malformed, or expired credential ⇒ fail closed, no order.
-- Sessions are local, explicit, and recoverable; MCP-server sessions additionally gate writes behind the environment flag plus the per-call confirmation.
-
-## Security
-
-- **Permission model:** the harness is the only component that places orders; the LLM has zero tools; the MCP surface is five fixed tools; the underlying Binance operations are a 6-entry allowlist enforced before any request is built.
-- **Secret handling:** per-request in-memory credential loads; a dedicated test asserts no-leak into logs, receipts, or error strings.
-- **Input validation:** claims are validated against a closed schema at the boundary — unknown fields, floats for quantities, reused claim IDs, and out-of-range prices are rejected before placement.
-- **Access control:** write commands require `--confirm-live-write` (CLI) or the double gate (MCP); exit code 2 and nothing is sent without it.
-- **Transport:** JSON-RPC responses are matched to request IDs; mismatches are rejected.
-
-## Safety
-
-- **Agents are allowed to:** read live context, draft claims, and — through the Qualto boundary — place claim-bound orders and cancel the exact order bound to a claim.
-- **Agents are not allowed to:** touch withdrawal, transfer, futures, or margin paths (not in the allowlist); place any order that is not claim-bound; unblock a session they got blocked.
-- **Requires explicit human approval:** every live write (confirmation flag), every session recovery, every cleanup.
-- **High-risk handling:** an order whose placement outcome is unknown produces an `order_submitted` intent receipt and a `qualto cleanup` path that resolves the order by claim ID and cancels the exact exchange order. Everything fails closed: the safe state is "no order."
-
-## Prompt Examples
-
-With the skill installed (Claude Code / Qwen Code):
-
-```text
-Simple:    "Buy 5 USDT of BNB on my sub-account and prove it."
-Advanced:  "Propose a below-market dust limit for BNBUSDT that proves the
-            claim-bind loop at zero cost, then cancel it."
-Multi-step:"Check the session status, read live BNB price and balance,
-            propose a claim that spends under 5 USDT, attest it, cancel it,
-            then re-verify all receipts against Binance."
+```bash
+qualto verify --receipts-file receipts.jsonl   # read-only
 ```
 
-With any MCP client connected to `qualto-mcp`, the same intents map to tool calls:
+**Benchmarks** (measured, not marketed): PROVED verdict → confirmed cancellation **353 ms** · full Agent OS gateway cycle **1.2–1.4 s** · mandate → PROVED **~28 s** (LLM-bound) — *verification is never the bottleneck; the thinking is.*
 
-```json
-{"tool": "qualto_read_context", "arguments": {"symbol": "BNBUSDT"}}
-{"tool": "qualto_attest_claim", "arguments": {"claim": {...}, "confirm_live_write": true}}
-{"tool": "qualto_verify_receipts", "arguments": {}}
-```
-
-CLI equivalents: `qualto propose --mandate "buy 5 USDT of BNB"`, `qualto claim --claim-file c.json --confirm-live-write --cancel-after-attestation`, `qualto verify`.
+**Reliability:** the behavior above is backed by 11,433 passing tests (~19 s, no network) — 10,665 parameterized claim-contract cases (sides × order types × statuses × quantities × price tolerances × envelope shapes), 12 MCP server tool/gate tests, and 756 focused behavioral tests (dual readback, replay rejection, session locking, orphan cleanup, CLI). Reproduce with `pytest -q`.
 
 ## Run It Yourself
 
-**Requirements:** Python 3.11+; a Binance account with a funded **Agentic sub-account**; a registered host credential (Codex CLI authenticated with the Binance connector) exported as `QUALTO_CODEX_CREDENTIALS_FILE`. Optional: Hermes for the drafting loop (`QUALTO_HERMES_BIN` / `QUALTO_HERMES_PYTHON`); Node 22+ for the web console only.
-
-No database, no API keys of your own, no main-account access — ever.
+**Requirements:** Python 3.11+ · a Binance account with a funded **Agentic sub-account** · a registered Agent OS host credential (Codex CLI authenticated with the Binance connector) as `QUALTO_CODEX_CREDENTIALS_FILE`. No database, no personal API keys, no main-account access — ever.
 
 ## Quickstart
 
 ```bash
 git clone https://github.com/mystiquemide/qualto && cd qualto
 python3 -m venv .venv && .venv/bin/pip install -e ".[test]"
-.venv/bin/pytest -q                                  # 11,433 tests, ~19 s
 
 export QUALTO_CODEX_CREDENTIALS_FILE=/path/to/host-credentials.json
-.venv/bin/qualto smoke                               # read-only gateway check
+.venv/bin/qualto smoke          # read-only gateway check
+.venv/bin/qualto propose --mandate "buy 5 USDT of BNB"   # agent drafts, nothing placed
 
 # first zero-cost proof cycle on your own sub-account
 cat > my-claim.json <<'EOF'
@@ -224,50 +155,67 @@ EOF
   --confirm-live-write --cancel-after-attestation
 ```
 
-To serve the web console locally: `cd web && npm install && npm run dev`.
+Web console: `cd web && npm install && npm run dev`.
 
-## Benchmarks
+## Security
 
-Measured on the live Agent OS gateway and the repo's own test suite, September 2026, single VPS session, BNBUSDT:
+- **Permission model:** only Qualto's boundary places orders; the LLM has zero tools; the MCP surface is five fixed tools; the underlying Binance operations are a 6-entry allowlist enforced before any request is built.
+- **Secret handling:** the host credential is loaded per request, in memory, never logged, never in receipts; a dedicated test asserts no leakage. Missing or expired ⇒ fail closed, no order.
+- **Input validation:** closed claim schema at the boundary — unknown fields, float quantities, reused claim IDs, out-of-range prices rejected before placement.
+- **Access control:** every live write requires `--confirm-live-write` (CLI) or the env flag plus per-call confirmation (MCP); exit code 2 and nothing is sent without it.
+- **Transport:** JSON-RPC responses matched to request IDs; mismatches rejected.
 
-| Task | Method | Result |
+## Safety
+
+- **The agent may:** read live context, draft claims, and — through the Qualto boundary — place claim-bound orders and cancel the exact order bound to a claim.
+- **The agent may not:** reach withdrawal, transfer, futures, or margin paths; place any order that isn't claim-bound; unblock a session it got blocked.
+- **Requires explicit human approval:** every live write, every session recovery, every cleanup.
+- **Unknown outcomes fail closed:** an order whose placement result is unknown produces an intent receipt and a `qualto cleanup` path that resolves it by claim ID. The safe state is always "no order."
+
+## Agent Integrations
+
+| Agent | How it interacts | Status |
 |---|---|---|
-| PROVED verdict → confirmed cancellation | Wall clock between receipt timestamps on live order `12565050896` | **353 ms** |
-| Full gateway cycle (initialize + tools/list + account read) | 3 timed `qualto smoke` runs | **1.2–1.4 s** |
-| Mandate → PROVED (LLM-bound) | Live `qualto agent` run | **~28 s** |
-| Test suite | `pytest -q`, no network | **11,433 tests in ~19 s** |
+| **OpenAI Codex** | The OAuth credential rides Codex's registered Binance Agent OS connector. All live proofs in this repo ran on this path. | Tested, live-proven |
+| **Claude Code / Claude Desktop** | Install the agent skill (`~/.claude/skills/`) and/or connect `qualto-mcp` as a stdio MCP server ([config](examples/mcp/mcp-client.json)). | Supported |
+| **Qwen Code** | Same skill installs to `~/.qwen/skills/`. | Supported |
+| **Any MCP-compatible client** | `pip install -e ".[mcp]"` then `qualto-mcp`. | Supported |
+| ChatGPT / Devin | Require remote HTTP MCP; `qualto-mcp` is stdio-only today. | Not implemented |
 
-Success criterion for attestation is not statistical: it is per-order and binary — all six fields match on a live dual readback, or the verdict is not PROVED.
+## Binance Integration
 
-## Benchmark Scores
+- **Endpoint:** Binance Agent OS MCP (`agent.binance.com/mcp/agentic`), JSON-RPC over streamable HTTP, protocol `2025-03-26`, OAuth 2.1 via the registered host connector.
+- **Tools:** 366 exposed → 6 allowlisted: `spot.getAccount`, `spot.tickerPrice`, `spot.newOrder`, `spot.getOrder`, `spot.myTrades`, `spot.deleteOrder`.
+- **Order identity:** every order placed with `newClientOrderId = claimId` — the attestation is visible in Binance's own order history UI.
+- **Envelope:** all activity confined to a funded Agentic sub-account; main-account funds are structurally out of reach.
 
-The 11,433-test matrix is the reliability benchmark, and it is fully reproducible with one command:
+## Skill Integrations
 
-| Suite | Cases | Result |
-|---|---|---|
-| Claim round-trip contract matrix (parameterized: side × order type × status × quantities, price tolerance, envelope shapes, forbidden operations) | 10,665 | Pass |
-| MCP server tools and write gates | 12 | Pass |
-| Focused behavioral tests (dual readback, replay, block, cleanup, error states, CLI, pair support, receipts) | 756 | Pass |
-| **Total** | **11,433** | **Pass** |
+- **`qualto-claim-bound-trading`** ([skills/](skills/qualto-trading/SKILL.md)) — teaches SKILL.md-compatible agents the policy: never call Binance order endpoints directly, report verdicts verbatim, never soften an UNPROVED, stop when the session locks.
+- **MCP tools (`qualto-mcp`):** `qualto_session_status`, `qualto_read_context`, `qualto_attest_claim`, `qualto_cleanup_claim`, `qualto_verify_receipts`. Live writes require `QUALTO_ENABLE_LIVE_WRITE=1` **and** a per-call `confirm_live_write` flag.
 
-No comparative claims against other tools are made — no baseline exists, and Qualto's own rule is: no unproved claims.
+## Other Integrations
+
+- **Web console** — Next.js 15 (`web/`), deployed to [qualto.vercel.app](https://qualto.vercel.app) and GitHub Pages.
+- **Hermes** — optional LLM provider for the drafting loop.
+- **CI/CD** — GitHub Actions on every push; Pages and Vercel deploy from `main`.
+
+## Authentication
+
+Users never hand Qualto a Binance API key. Authentication rides a registered Agent OS host connector's OAuth credential (`QUALTO_CODEX_CREDENTIALS_FILE`), loaded per request, expiry-checked every call, never persisted. Sessions are local and explicit; MCP sessions add the double write gate.
 
 ## Limitations
 
 - Single session, spot only, one symbol per claim; attestation is per-order, not per-strategy.
 - The claim file — not the mandate — is the binding contract.
-- Third-party agent OAuth identities are not admitted by Binance yet; Qualto runs on the registered host-credential path and fails closed when unavailable.
+- Third-party agent OAuth identities are not yet admitted by Binance; Qualto runs on the registered host-credential path and fails closed when unavailable.
 - The MCP server is stdio-only; remote-HTTP clients (ChatGPT, Devin) cannot connect today.
-- Qualto proves that a trade happened exactly as claimed — it does not judge whether the trade was a good idea.
-- Human supervision is required for: every live write, every session recovery, and any state after an UNPROVED verdict.
+- Qualto proves a trade happened exactly as claimed — it does not judge whether the trade was a good idea.
+- Human supervision required for: every live write, every session recovery, any state after an UNPROVED verdict.
 
-## Future Vision
+## Vision
 
-- **Native console attestation** — claim-bound orders surfaced inside the Binance Agent OS console.
-- **No proof, no payment** — attestation as the settlement gate for agentic commerce (x402).
-- **Remote MCP** — HTTP transport so any hosted agent can connect.
-- **Multi-venue attestation** — the same claim-diff pattern over `convert.orderStatus`.
-- **Multi-session persistence** — receipt-derived session rebuilds across runs.
+Everyone is building agents that decide *what* to trade. Qualto tackles whether you can trust *what the agent says it did*. That wedge generalizes: claim-bound orders as an Agent OS convention (reserved client-order-ID namespace, native console attestation), "no proof, no payment" settlement gating for agentic commerce (x402), multi-venue attestation, and remote MCP so any hosted agent can connect.
 
 ## Contributing
 
@@ -277,4 +225,4 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[test,quality]"
 .venv/bin/pytest -q && .venv/bin/ruff check . && .venv/bin/mypy
 ```
 
-PR expectations: tests for every behavioral change, all quality gates green, no credential or receipt data committed. New Binance operations go into the allowlist in `qualto/mcp/client.py` with negative tests; new agent surfaces (skills, MCP tools) belong in `skills/` and `qualto/mcp/server.py` respectively, with the same fail-closed gates. MIT license; keep the invariant intact — **no fill, no claim**.
+PR expectations: tests for every behavioral change, all quality gates green, no credentials or receipt data committed. New Binance operations go into the allowlist in `qualto/mcp/client.py` with negative tests; new agent surfaces belong in `skills/` and `qualto/mcp/server.py` with the same fail-closed gates. MIT license. Keep the invariant intact — **if Binance can't prove it, the agent can't claim it.**

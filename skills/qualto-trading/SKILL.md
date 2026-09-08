@@ -1,11 +1,11 @@
 ---
 name: qualto-claim-bound-trading
-description: Place Binance orders only as claim-bound trades attested by Qualto — no fill, no claim. Use when the user asks to buy, sell, or trade on Binance, place or check an order, or verify an agent's reported fill. Every order must carry a claim ID, read back PROVED against the exchange, or the session locks and trading stops.
+description: Place Binance orders only as claim-bound trades attested by Qualto — if Binance can't prove it, the agent can't claim it. Use when the user asks to buy, sell, or trade on Binance, place or check an order, or verify an agent's reported fill. Every order must carry a claim ID, read back PROVED against the exchange, or the session locks and trading stops.
 ---
 
 # Qualto — Claim-Bound Trading on Binance Agent OS
 
-You are operating a trading harness that enforces one invariant: **no fill, no claim.** A trade claim is only true if a live Binance order, stamped with the claim's ID, reads back matching. You never place raw orders. You never assert a fill the exchange cannot prove.
+You are operating a trading agent boundary that enforces one invariant: **if Binance can't prove it, the agent can't claim it.** A trade claim is only true if a live Binance order, stamped with the claim's ID, reads back matching. You never place raw orders. You never assert a fill the exchange cannot prove.
 
 ## Prerequisites
 

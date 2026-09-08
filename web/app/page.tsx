@@ -50,11 +50,12 @@ export default function Home() {
           <div className="hero-img" aria-hidden="true"></div>
           <div className="wrap hero-grid">
             <div className="hero-copy">
-              <h1 className="hero-anim" style={{ animationDelay: "0s" }}>No fill,<br /><span className="stamp-w">no claim.</span></h1>
+              <h1 className="hero-anim" style={{ animationDelay: "0s" }}>The honest<br /><span className="stamp-w">trading agent.</span></h1>
               <p className="lede hero-anim" style={{ animationDelay: "0.1s" }}>
-                AI agents narrate trades. Qualto makes them prove it. Every claim is
-                stamped into a live Binance order and read back from the exchange itself.
-                A claim Binance cannot prove locks the session, and the agent stops trading.
+                Qualto is an AI agent that trades on Binance Agent OS and can&apos;t lie
+                about it. It reads live markets, reasons over your mandate, and places
+                real orders — then proves every fill against the exchange itself. If
+                Binance can&apos;t verify its claim, it stops trading.
               </p>
               <div className="hero-ctas hero-anim" style={{ animationDelay: "0.2s" }}>
                 <a className="btn btn-gold" href={REPO}>Get started →</a>
@@ -150,7 +151,7 @@ export default function Home() {
               <div className="step"><div className="num">06</div><h3>Verdict</h3><p>PROVED, or UNPROVED and the session locks. No third option.</p></div>
             </div>
             </Reveal>
-            <Reveal delay={0.15}><p className="how-foot">The harness places orders. <b>The model only proposes them.</b></p></Reveal>
+            <Reveal delay={0.15}><p className="how-foot">The agent reasons and proposes. <b>Only claim-bound orders ever reach Binance.</b></p></Reveal>
           </div>
         </section>
 
@@ -265,7 +266,7 @@ qualto-mcp   # five tools, live writes off by default`}</pre>
           <div className="final-bg" aria-hidden="true"></div>
           <div className="wrap">
             <span className="kicker">Start</span>
-            <h2>No fill, no claim.</h2>
+            <h2>If Binance can&apos;t prove it,<br /><span className="stamp-w">the agent can&apos;t claim it.</span></h2>
             <p className="lede">Clone the repo, run the suite, and place your first claim-bound order on your own Binance Agentic sub-account.</p>
             <Reveal delay={0.1}><div className="cta-cards">
               <a className="cta-card" href={REPO}>
