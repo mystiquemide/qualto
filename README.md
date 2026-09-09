@@ -22,7 +22,7 @@ The LLM decides what claim to propose. Qualto's deterministic boundary decides w
 
 *Binance Agent OS Mini Hackathon · Track A*
 
-- **Demo video:** TBD-REPLACE-WITH-TWEET-LINK
+- **Demo video:** https://x.com/MystiqueMide/status/2097474244095451324?s=20
 - **Live site:** [qualto.vercel.app](https://qualto.vercel.app)
 - **Repository:** [github.com/mystiquemide/qualto](https://github.com/mystiquemide/qualto)
 
